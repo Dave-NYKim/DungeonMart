@@ -26,6 +26,7 @@ const fmt = n => Math.floor(n).toLocaleString('ko-KR');
 const clock = n => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 const statusNames = { arrive: '입장 · 마트로 이동', hunt: '자동 사냥 중', depart: '사냥터로 이동', return: '마트로 귀환', recover: '마트에서 회복', dead: '부활 대기' };
 const statusOf = h => h.standby && ['recover','return'].includes(h.state) ? '마을 대기' : `${statusNames[h.state]}${h.state==='hunt'?` · ACT ${ZONES[h.zone].act}`:''}`;
+const tierOf = h => `${titleOf(h)}(${h.path.length+1}차)`;
 const icon = pixelIcon;
 const slotIcon = (slot, hero = selectedHero()) => slot === 'weapon' ? classOf(hero).glyph : slot === 'armor' ? 'armor' : 'gem';
 function toast(message, error = false) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').className = `visible${error ? ' error' : ''}`; toastTimer = setTimeout(() => $('toast').className = '', 3500); }
@@ -49,7 +50,7 @@ function setProfileTab(next){
  renderProfileChrome();$('profile-scroll').scrollTop=0;
 }
 function renderProfileChrome(){
- const h=selectedHero();$('hero-modal-title').textContent=`${h.name} · ${titleOf(h)}`;
+ const h=selectedHero();$('hero-modal-title').textContent=`${h.name} · ${tierOf(h)}`;
  $('profile-selector').innerHTML=`<button class="small-button" data-action="profile-prev" aria-label="이전 용사">‹</button><span style="color:${classOf(h).color}">${heroIdentity(h).epithet} · Lv.${h.level}</span><button class="small-button" data-action="profile-next" aria-label="다음 용사">›</button><button class="small-button" data-action="profile-follow">${renderer.followId===h.id?'추적 중 · 지도 보기':'이 용사 따라가기 ↗'}</button>`;
  $('profile-tabs').innerHTML=[['overview','정보 · 외형'],['equipment','장비'],['skills','전직 · 스킬'],['hunt','사냥 · 기록']].map(([id,name])=>`<button data-action="profile-tab" data-tab="${id}" class="${profileTab===id?'active':''}" aria-pressed="${profileTab===id}">${name}</button>`).join('');
  $('profile-hunt').innerHTML=`<div class="surface"><h3>${h.name}의 모험</h3><p>${heroIdentity(h).origin} · ${classOf(h).role}<br>누적 처치 ${fmt(h.kills)} · 보유 골드 ${fmt(h.gold)} G<br>현재 ${statusOf(h)}</p><button class="primary-button" data-action="profile-follow">이 용사 따라가기 ↗</button></div><div class="section-title"><h3>사냥터 배정</h3></div><div class="profile-zones"><button class="surface" data-action="assign" data-zone="-1"><strong>마을 대기</strong><p>${h.standby?'현재 대기 중':'사냥을 멈추고 마트에서 대기'}</p></button>${ZONES.map(z=>`<button class="surface" data-action="assign" data-zone="${z.id}" ${availableZone(state,z.id)?'':'disabled'}><strong>ACT ${z.act} · ${z.name}</strong><p>${h.zone===z.id&&!h.standby?'현재 배정 중':availableZone(state,z.id)?'이 사냥터로 배정':`Lv.${z.level} 해금`}</p></button>`).join('')}</div>`;
@@ -77,7 +78,7 @@ function renderRoster() {
   $('hero-count').textContent = `${state.heroes.length} / 20`;
   $('roster-summary').innerHTML = `<span>총 전투력 <strong>${fmt(state.heroes.reduce((v,h)=>v+powerOf(h,state),0))}</strong></span><span>사냥 중 ${state.heroes.filter(h=>h.state==='hunt').length}</span>`;
   const list = $('hero-list'), scroll = list.scrollTop, left = list.scrollLeft;
-  list.innerHTML = state.heroes.map(h=>`<button class="hero-card ${h.id===selected?'selected':''}" data-action="select" data-id="${h.id}" aria-label="${h.name}, ${titleOf(h)}, 레벨 ${h.level}" aria-pressed="${h.id===selected}"><div class="hero-avatar" style="--hero-color:${classOf(h).color}"><canvas class="roster-portrait" data-portrait="${h.id}" width="72" height="96" aria-hidden="true"></canvas></div><div><div class="hero-name"><strong style="color:${HERO_GRADES[h.grade].color}">${h.name}</strong><small>Lv.${h.level}</small></div><div class="hero-class"><span style="color:${HERO_GRADES[h.grade].color}">${HERO_GRADES[h.grade].name}</span> · ${titleOf(h)}</div><div class="bar"><span style="width:${h.hp/statsOf(h,state).hp*100}%"></span></div><div class="hero-status ${h.state}"><i class="status-dot"></i>${statusOf(h)}</div></div></button>`).join('');
+  list.innerHTML = state.heroes.map(h=>`<button class="hero-card ${h.id===selected?'selected':''}" data-action="select" data-id="${h.id}" aria-label="${h.name}, ${tierOf(h)}, 레벨 ${h.level}" aria-pressed="${h.id===selected}"><div class="hero-avatar" style="--hero-color:${classOf(h).color}"><canvas class="roster-portrait" data-portrait="${h.id}" width="72" height="96" aria-hidden="true"></canvas></div><div><div class="hero-name"><strong style="color:${HERO_GRADES[h.grade].color}">${h.name}</strong><small>Lv.${h.level}</small></div><div class="hero-class"><span style="color:${HERO_GRADES[h.grade].color}">${HERO_GRADES[h.grade].name}</span> · ${tierOf(h)}</div><div class="bar"><span style="width:${h.hp/statsOf(h,state).hp*100}%"></span></div><div class="hero-status ${h.state}"><i class="status-dot"></i>${statusOf(h)}</div></div></button>`).join('');
   list.scrollTop = scroll; list.scrollLeft = left;
   for(const canvas of list.querySelectorAll('[data-portrait]')) portrait(canvas,state.heroes.find(h=>h.id===canvas.dataset.portrait),state);
 }
