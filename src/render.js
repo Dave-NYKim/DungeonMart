@@ -1,4 +1,4 @@
-import { HERO_GRADES } from './data.js';
+import { HERO_GRADES, DIFFICULTIES } from './data.js';
 import { ZONES, MONSTERS, MART, classOf } from './data.js';
 import { statsOf, availableZone, gearSummary } from './engine.js';
 import { GRADES, itemBase, gradeColor, displayName } from './items.js';
@@ -32,7 +32,13 @@ function drawMonster(c,e,time){
  if(e.boss){const sprite=bossSprite(Math.floor(time*2+e.x)%2),x=Math.round(e.x),y=Math.round(e.y);oval(c,x,y+2,26,7,'#18241d99');c.imageSmoothingEnabled=false;
   for(let i=0;i<7;i++){const ph=time*1.3+i*.9;rect(c,x+Math.round(Math.cos(ph)*30+Math.sin(ph*2.3)*6),y-20+Math.round(Math.sin(ph*1.7)*16),2,2,i%2?'#ffb457':'#ff7a2e');}
   c.drawImage(sprite,x-32,y-68);panel(c,x-24,y-80,49,6,'#382f31');rect(c,x-23,y-79,Math.round(47*Math.max(0,e.hp/e.maxHp)),4,e.hp<e.maxHp*.3?'#ff6a4a':'#e4b875');return;}
- const m=MONSTERS[e.type],sprite=monsterSprite(m,Math.floor(time*5+e.x)%2,e.curse>0),size=e.elite?1.25:.85,x=Math.round(e.x),y=Math.round(e.y);oval(c,x,y+1,8*size,2*size,'#18241d88');c.imageSmoothingEnabled=false;c.drawImage(sprite,Math.round(x-16*size),Math.round(y-32*size),Math.round(32*size),Math.round(36*size));if(e.elite||e.hp<e.maxHp){panel(c,x-10,y-32*size-4,21,4,'#382f31');rect(c,x-9,y-32*size-3,Math.round(19*Math.max(0,e.hp/e.maxHp)),2,e.elite?'#e4b875':'#c57e72');}}
+ const m=MONSTERS[e.type],size=e.elite?1.25:.85,x=Math.round(e.x),y=Math.round(e.y);
+ if(e.tier>0){// Placeholder box art for Nightmare/Hell until the scarier designs land.
+  const D=DIFFICULTIES[e.tier],w=Math.round(22*size),hh=Math.round(26*size),bob=Math.floor(time*4+e.x)%2;oval(c,x,y+1,Math.round(8*size),Math.round(2*size),'#18241d88');c.imageSmoothingEnabled=false;
+  rect(c,x-w/2,y-hh-bob,w,hh,'#1a1418');rect(c,x-w/2+1,y-hh+1-bob,w-2,hh-2,e.curse>0?'#b47cbb':D.color);rect(c,x-w/2+2,y-hh+2-bob,w-4,3,m.color);rect(c,x-w/2+1,y-4-bob,w-2,3,'#0d0a0c');
+  rect(c,x-Math.round(w*.3),y-hh+Math.round(hh*.4)-bob,3,3,'#fff1b0');rect(c,x+Math.round(w*.3)-3,y-hh+Math.round(hh*.4)-bob,3,3,'#fff1b0');rect(c,x-Math.round(w*.3)+1,y-hh+Math.round(hh*.4)+1-bob,1,1,'#3a0d0d');rect(c,x+Math.round(w*.3)-2,y-hh+Math.round(hh*.4)+1-bob,1,1,'#3a0d0d');
+  if(e.elite||e.hp<e.maxHp){panel(c,x-10,y-hh-6-bob,21,4,'#382f31');rect(c,x-9,y-hh-5-bob,Math.round(19*Math.max(0,e.hp/e.maxHp)),2,e.elite?'#e4b875':'#c57e72');}return;}
+ const sprite=monsterSprite(m,Math.floor(time*5+e.x)%2,e.curse>0);oval(c,x,y+1,8*size,2*size,'#18241d88');c.imageSmoothingEnabled=false;c.drawImage(sprite,Math.round(x-16*size),Math.round(y-32*size),Math.round(32*size),Math.round(36*size));if(e.elite||e.hp<e.maxHp){panel(c,x-10,y-32*size-4,21,4,'#382f31');rect(c,x-9,y-32*size-3,Math.round(19*Math.max(0,e.hp/e.maxHp)),2,e.elite?'#e4b875':'#c57e72');}}
 export class WorldRenderer {
  constructor(canvas,minimap){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.surface=canvasOf(1,1);this.low=this.surface.getContext('2d');const scene=buildScene();this.bg=scene.background;this.props=scene.props;this.sceneRevision=-1;this.editing=false;this.editGhost=null;this.boat=scale2x(boatSprite());this.flats=[];this.camera=new Camera();this.previous=new Map();this.minimap=minimap;this.followId=null;this.hovered=null;this.resize();}
  resize(){const r=this.canvas.getBoundingClientRect();if(r.width&&r.height)this.camera.resize(r.width,r.height);}

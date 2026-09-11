@@ -107,6 +107,13 @@
 - 변경 파일: src/engine.js, src/app.js, tests/engine.test.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
 - 검증: npm test 40개 통과, 격리 브라우저에서 모달/재료 증가/중복 지급 없음 확인, browser-smoke 통과.
 
+## 2026-09-11 · 난이도 사다리 (Claude)
+
+- 요청: 노멀/나이트메어/헬 × 10단계, 노멀 10 ≪ 나이트메어 1, 액트 간 완만한 차이, 5분 변경 잠금, 보스 처치로 다음 난이도 해금, 고난이도 몬스터는 임시 네모 박스.
+- 구현: `DIFFICULTIES`(배율 1/8/60), 단계당 +30%, 액트 계수 1~2.2. 엔진 `zoneStats`/`setDifficulty`/`s.difficulty`, 보스 승리 시 해금. 사냥터 화면 난이도 바, DAY 라벨 표시, 박스 몬스터 렌더. 스모크 테스트 포트를 환경변수로 분리.
+- 변경 파일: src/data.js, src/engine.js, src/render.js, src/app.js, style.css, tests/engine.test.mjs, tests/browser-smoke.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
+- 검증: npm test 41개 통과, 격리 브라우저(4174/9224)에서 난이도 바·박스 몬스터 확인, browser-smoke 통과.
+
 ## 2026-09-11 · 통합 인벤토리, 마을 제작소, 보스 20분 쿨다운·전리품, 전체 분해, 지도 아이콘 바
 
 - 사용자 요청: 보스 20분에 한 번 소환, 하나의 인벤토리에 무기·방어구·장신구 구간, 배치 시 창고에서 제거, 등급별 전체 분해와 세트·전설 분해 특수 재료, 사용 불가 표시 제거, 제작은 마을 제작소에서만, 지도 바로가기는 마을·액트 아이콘으로 상단에.
