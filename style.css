@@ -295,3 +295,14 @@ body.gear-dragging{cursor:grabbing;user-select:none}
 .tree-state{margin-left:auto;font-size:9px;padding:3px 8px;border:1px solid #778566;color:#e0e3c4;white-space:nowrap}.tree-state.eligible{border-color:#ffd27a;color:#ffe1a0}.tree-state.chosen{border-color:#e2c58c;color:#f3e2b1}
 .tree-detail .tree-skill-list{margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;flex-direction:row}
 @media(max-width:720px){.tree-node{width:66px;padding:4px 2px}.tree-node small{display:none}.tree-node strong{font-size:9px}.d2-tree li{padding:18px 2px 0}.d2-tree ul{padding-top:18px}.d2-tree li::before,.d2-tree li::after,.d2-tree ul ul::before{height:18px}}
+
+/* 난이도 선택 */
+.difficulty-bar{margin:0 0 10px;padding:10px 12px;background:#2a3a30;border:2px solid #596c4e;border-left:6px solid var(--diff-color);box-shadow:inset 1px 1px #6c7b59,3px 3px #192a22}
+.diff-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.diff-head strong{font-size:13px;color:#f3e2b1}.diff-head small{font-size:9px;color:#b4c59c}
+.diff-lock{margin-left:auto;font-size:9px;font-family:monospace;color:#b6d185;padding:2px 7px;border:1px solid #56674f}.diff-lock.locked{color:#f0b070;border-color:#b0655a}
+.diff-tiers{display:flex;gap:4px;margin-top:8px}.diff-tier{flex:1;padding:6px 4px;font-size:10px;background:#233632;border:2px solid #4a5c46;color:#c3c9b3;display:inline-flex;justify-content:center;align-items:center;gap:4px}
+.diff-tier.active{border-color:var(--diff-color);color:#fff0d8;background:#354a38}.diff-tier.current:after{content:'●';font-size:7px;color:var(--diff-color)}.diff-tier:disabled{opacity:.5}
+.diff-stages{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;margin-top:6px}.diff-stage{padding:5px 0;font-size:10px;background:#233632;border:1px solid #4a5c46;color:#c3c9b3}
+.diff-stage.active{background:#41583a;border-color:#abb983;color:#f3e2b1;font-weight:700}
+.diff-hint{display:block;margin-top:6px;font-size:8px;color:#8a967f}
+@media(max-width:720px){.diff-stages{grid-template-columns:repeat(5,minmax(0,1fr))}.diff-hint{display:none}}

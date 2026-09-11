@@ -1,7 +1,7 @@
-import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, classOf, skillsOf, titleOf } from './data.js';
+import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, DIFFICULTIES, STAGES, stageMult, classOf, skillsOf, titleOf } from './data.js';
 import { GRADES, gradeColor, displayName, itemBase, TIER_NAMES } from './items.js';
 import { installGearUI, itemLines, iconFor } from './gear-ui.js';
-import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
+import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, setDifficulty, zoneStats, DIFFICULTY_LOCK, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
 import { WorldRenderer, portrait, monsterPortrait, drawHero } from './render.js';
 import { pixelIcon } from './pixel-icons.js';
 import { MART, ARRIVAL, REGIONS, POIS, poiAt, regionAt, MOVABLE_IDS, DECORATIONS, TOWN_BOUNDS, snapTown, placementError, freshTown, applyTownLayout } from './world.js';
@@ -101,20 +101,27 @@ function updateDetail() {
 function zoneChip(h){const st=statsOf(h,state);return `<button class="zone-hero ${h.id===selected?'selected':''}" data-action="select" data-id="${h.id}" data-hero="${h.id}" style="--hero-color:${classOf(h).color}" title="${h.name} · Lv.${h.level} · ${statusOf(h)}" aria-label="${h.name}, 레벨 ${h.level}, ${statusOf(h)}"><canvas data-portrait="${h.id}" width="48" height="64" aria-hidden="true"></canvas><small style="color:${HERO_GRADES[h.grade].color}">${h.level}</small><i class="status-dot ${h.state}"></i><span class="chip-hp"><span style="width:${Math.max(0,h.hp/st.hp*100)}%"></span></span></button>`;}
 function renderActs() {
   const columns=[{id:-1,name:'마을 대기',sub:'사냥을 쉬고 마트에서 대기',heroes:state.heroes.filter(h=>h.standby),open:true,color:'#cfc9a0'},...ZONES.map(z=>({id:z.id,zone:z,name:`ACT ${z.act} · ${z.name}`,heroes:state.heroes.filter(h=>!h.standby&&h.zone===z.id),open:availableZone(state,z.id),color:z.color}))];
-  const html=`<div class="zone-board" id="zone-board">${columns.map(col=>`<section class="zone-column ${col.id===-1?'town':''} ${col.open?'':'locked'} ${col.zone&&selectedZone===col.id?'active':''}" data-drop-zone="${col.id}" style="--act-color:${col.color}" aria-label="${col.name}"><header>${col.zone?`<button class="zone-title" data-action="zone" data-zone="${col.id}" aria-pressed="${selectedZone===col.id}">${col.name}</button>`:`<strong class="zone-title">${col.name}</strong>`}<small>${col.open?`${col.heroes.length}명${col.zone?` · Lv.${col.zone.level}+`:''}`:`Lv.${col.zone.level} 해금 ${icon('lock')}`}</small></header><div class="zone-heroes">${col.heroes.map(zoneChip).join('')||`<span class="zone-empty">${col.open?'여기에 놓기':'잠김'}</span>`}</div><footer>${col.zone?`<div class="spawn-control"><span>젠</span><div class="spawn-options" role="group" aria-label="ACT ${col.zone.act} 몬스터 재생성 속도">${[1,2,3,4,5].map(v=>`<button class="small-button ${state.spawnRates[col.id]===v?'active':''}" data-action="spawn-rate" data-zone="${col.id}" data-value="${v}" aria-pressed="${state.spawnRates[col.id]===v}">${v}×</button>`).join('')}</div></div><small>${MATERIALS[col.zone.material].name} · ${(1.8/state.spawnRates[col.id]).toFixed(2)}초 간격</small>`:`<small>${col.sub}</small>`}</footer></section>`).join('')}</div>`;
-  const host=$('expedition-view');if(host._markup===html)return;host._markup=html;host.innerHTML=html;
+  const html=`${difficultyBarHTML()}<div class="zone-board" id="zone-board">${columns.map(col=>`<section class="zone-column ${col.id===-1?'town':''} ${col.open?'':'locked'} ${col.zone&&selectedZone===col.id?'active':''}" data-drop-zone="${col.id}" style="--act-color:${col.color}" aria-label="${col.name}"><header>${col.zone?`<button class="zone-title" data-action="zone" data-zone="${col.id}" aria-pressed="${selectedZone===col.id}">${col.name}</button>`:`<strong class="zone-title">${col.name}</strong>`}<small>${col.open?`${col.heroes.length}명${col.zone?` · Lv.${col.zone.level}+`:''}`:`Lv.${col.zone.level} 해금 ${icon('lock')}`}</small></header><div class="zone-heroes">${col.heroes.map(zoneChip).join('')||`<span class="zone-empty">${col.open?'여기에 놓기':'잠김'}</span>`}</div><footer>${col.zone?`<div class="spawn-control"><span>젠</span><div class="spawn-options" role="group" aria-label="ACT ${col.zone.act} 몬스터 재생성 속도">${[1,2,3,4,5].map(v=>`<button class="small-button ${state.spawnRates[col.id]===v?'active':''}" data-action="spawn-rate" data-zone="${col.id}" data-value="${v}" aria-pressed="${state.spawnRates[col.id]===v}">${v}×</button>`).join('')}</div></div><small>${MATERIALS[col.zone.material].name} · ${(1.8/state.spawnRates[col.id]).toFixed(2)}초 간격</small>`:`<small>${col.sub}</small>`}</footer></section>`).join('')}</div>`;
+  const host=$('expedition-view');if(host._markup===html){renderDifficultyLock();return;}host._markup=html;host.innerHTML=html;renderDifficultyLock();
   for(const canvas of host.querySelectorAll('[data-portrait]'))portrait(canvas,state.heroes.find(h=>h.id===canvas.dataset.portrait),state);
 }
 function costsHTML(cost) { return Object.entries(cost).map(([k,v])=>`<span class="${state.materials[k]<v?'insufficient':''}">${MATERIALS[k].name} ${v}</span>`).join(''); }
 const gearUI=installGearUI($('workshop-view'),{state:()=>state,hero:()=>selectedHero(),icon,fmt,result:r=>result(r),toast});
 function renderWorkshop() { gearUI.render(); }
-let treeNode=null;
+let treeNode=null,viewTier=null;
+function difficultyBarHTML(){
+  const f=state.difficulty,tier=viewTier??f.tier,D=DIFFICULTIES[tier];
+  const tiers=DIFFICULTIES.map((d,i)=>`<button class="diff-tier ${i===tier?'active':''} ${i===f.tier?'current':''}" data-action="difficulty-tier" data-tier="${i}" style="--diff-color:${d.color}" ${i>f.unlocked?'disabled':''} title="${i>f.unlocked?`${DIFFICULTIES[i-1].name} 보스 처치 시 해금`:d.name}">${d.name}${i>f.unlocked?` ${icon('lock')}`:''}</button>`).join('');
+  const stages=Array.from({length:STAGES},(_,i)=>i+1).map(st=>`<button class="diff-stage ${tier===f.tier&&st===f.stage?'active':''}" data-action="difficulty-stage" data-tier="${tier}" data-stage="${st}" aria-pressed="${tier===f.tier&&st===f.stage}" title="몬스터 ×${(D.mult*stageMult(st)).toFixed(1)}">${st}</button>`).join('');
+  return `<div class="difficulty-bar" style="--diff-color:${DIFFICULTIES[f.tier].color}"><div class="diff-head"><span class="eyebrow">DIFFICULTY</span><strong>${DIFFICULTIES[f.tier].name} ${f.stage}단계</strong><small>몬스터 ×${(DIFFICULTIES[f.tier].mult*stageMult(f.stage)).toFixed(1)} · 보상 ×${DIFFICULTIES[f.tier].reward}</small><span id="difficulty-lock" class="diff-lock"></span></div><div class="diff-tiers">${tiers}</div><div class="diff-stages" aria-label="${D.name} 단계 선택">${stages}</div><small class="diff-hint">단계를 누르면 즉시 적용되고 5분 동안 고정됩니다. 그 난이도에서 보스를 잡으면 다음 난이도가 열립니다.</small></div>`;
+}
+function renderDifficultyLock(){const el=$('difficulty-lock');if(!el)return;const wait=state.difficulty.lockedUntil-state.time;el.textContent=wait>0?`변경 잠금 ${clock(wait)}`:'변경 가능';el.classList.toggle('locked',wait>0);}
 function treeNodesOf(h){const c=classOf(h);return [{node:c,tier:1,parent:null},...c.branches.map(b=>({node:b,tier:2,parent:c})),...c.branches.flatMap(b=>b.children.map(n=>({node:n,tier:3,parent:b})))];}
 function treeInfo(h,n){
  if(n.tier===1)return {state:'chosen',sub:'기본 직업',eligible:false};
  const level=n.tier===2?20:40,chosen=h.path.includes(n.node.id),eligible=n.tier===2?!h.path.length:h.path.length===1&&h.path[0]===n.parent.id;
  if(chosen)return {state:'chosen',sub:'현재 계열',eligible:false};
- if(eligible)return h.level>=level?{state:'eligible',sub:'클릭하여 전직',eligible:true}:{state:'waiting',sub:`Lv.${level} 필요`,eligible:false};
+ if(eligible)return h.level>=level?{state:'eligible',sub:'눌러서 전직',eligible:true}:{state:'waiting',sub:`Lv.${level} 필요`,eligible:false};
  return {state:'other',sub:n.tier===3&&!h.path.length?'2차 전직 후 선택':'다른 계열',eligible:false};
 }
 function renderSkills() {
@@ -165,7 +172,7 @@ function renderUI(force=false){
   if(!force&&(pointerHeld||document.activeElement?.tagName==='SELECT'))return;
   renderResources();renderRoster();renderActs();updateDetail();
   $('selected-hero-button').textContent = `${selectedHero().name} · 정보 ↗`;
-  $('day-label').textContent=`DAY ${String(state.day).padStart(2,'0')}`;$('playtime').textContent=clock(state.time);$('kill-counter').textContent=`누적 처치 ${fmt(state.kills)}`;
+  $('day-label').textContent=`DAY ${String(state.day).padStart(2,'0')} · ${DIFFICULTIES[state.difficulty.tier].name} ${state.difficulty.stage}단계`;$('playtime').textContent=clock(state.time);$('kill-counter').textContent=`누적 처치 ${fmt(state.kills)}`;
   $('activity-log').innerHTML=state.logs.slice(0,3).map(l=>`<div class="log-row ${l.type}"><time>${clock(l.time)}</time><span class="log-message">${l.message}</span></div>`).join('');
   const h=selectedHero();const nextSig=JSON.stringify([selected,view,h.level,h.path,h.placed,h.costume,h.skillRanks,h.skillPoints,state.itemRev,state.warehouse.length,state.fieldDrops.length,Object.values(state.drawer.gems).join(),Object.values(state.drawer.runes).join(),state.upgrades,state.materials]);
   renderDropBadges();
@@ -225,6 +232,8 @@ document.addEventListener('click',event=>{
   if(a==='tree-node'){treeNode=b.dataset.id;const n=treeNodesOf(h).find(n=>n.node.id===treeNode),info=treeInfo(h,n);if(info.eligible){const r=result(promote(state,h,n.node.id));if(!r.ok)renderSkills();}else{previewSkillId=`${treeNode}-0`;previewStarted=performance.now();previewElapsed=0;previewPaused=false;renderSkills();}}
   if(a==='promote'){const c=classOf(h),node=c.branches.flatMap(b=>[b,...b.children]).find(n=>n.id===b.dataset.id);openModal(`${node.name} 전직`, `<p class="modal-description">${h.name}의 전직 계열을 ${node.name}(으)로 선택합니다. 전직 계열은 이 버전에서 되돌릴 수 없습니다.</p><div class="costs">${costsHTML(h.path.length?{crystal:25,soul:15}:{iron:35,crystal:12})}</div>`,`<button class="small-button" data-action="close">돌아가기</button><button class="primary-button" data-action="confirm-promote" data-id="${node.id}" data-hero="${h.id}">전직하기</button>`);}
   if(a==='confirm-promote'){const r=result(promote(state,state.heroes.find(h=>h.id===b.dataset.hero),b.dataset.id));if(r.ok)$('modal').close();}
+  if(a==='difficulty-tier'){viewTier=Number(b.dataset.tier);renderActs();}
+  if(a==='difficulty-stage'){const r=result(setDifficulty(state,Number(b.dataset.tier),Number(b.dataset.stage)));if(r.ok)viewTier=null;}
   if(a==='summon-boss'){const r=result(summonBoss(state));if(r.ok){setView('world');renderer.focus(r.boss.x,r.boss.y-30,1);updateCameraChrome();}}
   if(a==='camera-home'){renderer.home();updateCameraChrome();}
   if(a==='camera-arrival'){renderer.focus(ARRIVAL.x,ARRIVAL.y-96,1);updateCameraChrome();}

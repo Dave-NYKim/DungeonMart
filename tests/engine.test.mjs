@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CLASSES, ZONES, skillsOf } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE } from '../src/engine.js';
+import { CLASSES, ZONES, skillsOf, DIFFICULTIES } from '../src/data.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK } from '../src/engine.js';
 import { BASES, effectiveGrid } from '../src/items.js';
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
@@ -120,4 +120,21 @@ test('offline settlement pays materials from the measured return rate, capped an
   assert.equal(settleOffline(s,Date.now()-30e3),null,'under a minute is ignored');
   s.treasury=5000;assert.ok(summonBoss(s).ok);assert.equal(settleOffline(s,since),null,'no payout during a raid');
   const legacy=JSON.parse(serialize(s));delete legacy.yield;delete legacy.raid;const loaded=restore(JSON.stringify(legacy));assert.ok(loaded);assert.deepEqual(loaded.yield.rate,{iron:0,crystal:0,soul:0});assert.ok(typeof loaded.savedAt==='number');
+});
+test('difficulty ladder: stages climb, nightmare 1 beats normal 10, acts stay close, boss kills unlock tiers, changes lock for five minutes',()=>{
+  const s=createGame();
+  const n1=zoneStats(s,0).hp;s.difficulty.stage=10;const n10=zoneStats(s,0).hp;s.difficulty.stage=1;
+  assert.ok(n10>n1*3&&n10<n1*4,'stage ten is roughly 3.7x stage one');
+  assert.ok(zoneStats(s,3).hp/zoneStats(s,0).hp<=2.5&&zoneStats(s,3).hp>zoneStats(s,0).hp,'ACT IV is stronger than ACT I but not wildly');
+  assert.equal(setDifficulty(s,1,1).ok,false,'nightmare is locked until the normal boss dies');
+  assert.ok(setDifficulty(s,0,4).ok);assert.equal(s.difficulty.stage,4);assert.equal(setDifficulty(s,0,5).ok,false,'locked for five minutes');
+  s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,0,5).ok);
+  s.treasury=5000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}const r=summonBoss(s);assert.ok(r.ok);r.boss.hp=1;r.boss.contributors[s.heroes[0].id]=1;
+  for(let i=0;i<200&&s.raid;i++)tick(s,.1);assert.equal(s.raid,null);assert.equal(s.difficulty.unlocked,1,'normal boss unlocks nightmare');
+  s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,1,1).ok);assert.equal(setDifficulty(s,2,1).ok,false,'hell still locked');
+  const nm1=zoneStats(s,0).hp;assert.ok(nm1>n10*1.5,'nightmare 1 is far above normal 10');
+  const e=spawnEnemy(s,0);assert.equal(e.tier,1);assert.ok(e.maxHp>n10);
+  const loaded=restore(serialize(s));assert.deepEqual(loaded.difficulty,s.difficulty);assert.equal(loaded.enemies.find(x=>x.id===e.id).tier,1);
+  const legacy=JSON.parse(serialize(s));delete legacy.difficulty;for(const x of legacy.enemies)delete x.tier;const l2=restore(JSON.stringify(legacy));assert.deepEqual(l2.difficulty,{tier:0,stage:1,unlocked:0,lockedUntil:0});assert.ok(l2.enemies.every(x=>x.tier===0));
+  const bad=JSON.parse(serialize(s));bad.difficulty.tier=2;assert.equal(restore(JSON.stringify(bad)),null,'tier above unlocked is rejected');
 });

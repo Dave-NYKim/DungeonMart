@@ -1,6 +1,6 @@
 # Dungeon Mart 인계 노트
 
-마지막 갱신: 2026-09-11 (Claude 인계 후 5차 작업: 보스 스프라이트 PixelLab 이미지 교체. 3차 작업: 보스 레이드, 몬스터 분산 스폰, 지옥 지형 정리, 클릭형 전직 트리). 2차 작업: 용사 관리 UI 정리, 사냥터 드래그앤드롭 보드, 마을 대기 상태, 픽셀 밀도 2배(1 픽셀 = 1 월드 단위) 구현. 이전 작업: 연결형 자연 지형, 항구 입항, 마을 편집, 용사 팝업 내부 관리, 스킬 아이콘/미리보기. **장비 시스템 v2는 설계만 완료(docs/EQUIPMENT_DESIGN.md), 미구현.** **장비 시스템 v2 구현(feature/equipment-v2 브랜치): 격자 장비창·드롭·빛기둥·홈/각인석/진언·세트/유니크·조합·저장 v3.**
+마지막 갱신: 2026-09-11 (Claude 인계 후 6차 작업: 보스 스프라이트 PixelLab 이미지 교체. 5차: 난이도 사다리. 3차 작업: 보스 레이드, 몬스터 분산 스폰, 지옥 지형 정리, 클릭형 전직 트리). 2차 작업: 용사 관리 UI 정리, 사냥터 드래그앤드롭 보드, 마을 대기 상태, 픽셀 밀도 2배(1 픽셀 = 1 월드 단위) 구현. 이전 작업: 연결형 자연 지형, 항구 입항, 마을 편집, 용사 팝업 내부 관리, 스킬 아이콘/미리보기. **장비 시스템 v2는 설계만 완료(docs/EQUIPMENT_DESIGN.md), 미구현.** **장비 시스템 v2 구현(feature/equipment-v2 브랜치): 격자 장비창·드롭·빛기둥·홈/각인석/진언·세트/유니크·조합·저장 v3.**
 
 ## 사용자 방향과 최신 요청
 
@@ -10,7 +10,7 @@
 - 마을 시설 위치를 옮기고 장식하는 기능. 용사 팝업 안에서 장비/전직/스킬/사냥 배정/기록을 보고 조작. 용사 따라가기. 용사 개성과 스킬 아이콘. 미전직 스킬도 효과 미리보기.
 - AGENTS.md 준수: 추가 패키지 없는 로컬 웹 게임, 저장 보존/마이그레이션, 완료 때 이 파일과 docs/WORKLOG.md 갱신. 이미지 외부 복제 없음. 코드로 직접 그린 픽셀 아트 및 SVG 아이콘.
 
-## 2026-09-11 · Claude 5차 작업 (보스 스프라이트 PixelLab 이미지 교체, feature/boss-sprite 브랜치·DungeonMart-boss 워크트리, 미커밋)
+## 2026-09-11 · Claude 6차 작업 (보스 스프라이트 PixelLab 이미지 교체, feature/boss-sprite)
 
 요청: PixelLab으로 만든 보스 그림을 게임에 적용. **사용자 방향 변경: 외부 픽셀 아트 도구(PixelLab) 생성 이미지 사용을 허용한다.** 용사(24×32)도 나중에 더 큰 크기로 다시 뽑을 계획이며, 그때 몬스터·건물도 같은 비율로 교체해야 한다.
 
@@ -20,6 +20,19 @@
 - `server.mjs`: `.png` MIME 추가.
 - 검증: `npm test` 40개 통과. 이 기기에 Chromium이 없어 브라우저 화면·browser-smoke 미확인. 확인 방법: 워크트리에서 `PORT=4174 npm start` 후 보스 소환.
 - 남은 일: 화면에서 보스 크기·HP 바 위치 확인, 도감(bestiary)에 보스 초상 추가 여부, 용사·몬스터 교체 시 기준 크기 확정, 보스 걷기/공격 프레임(현재 호흡 1px만).
+
+## 2026-09-11 · Claude 5차 작업 (난이도 사다리: 노멀/나이트메어/헬 × 10단계)
+
+요청: 난이도 3종 × 10단계, 단계마다 몬스터 강화, 노멀 10 ≪ 나이트메어 1(큰 갭). 고난이도 몬스터 외형은 우선 네모 박스(디자인은 나중에). 난이도는 바꾸면 5분 잠금, 그 난이도의 보스를 잡아야 다음 난이도 해금. 난이도 안에서 액트 I이 가장 약하고 액트 IV가 조금 더 셈(너무 크지 않게).
+
+- 데이터(`data.js`): `DIFFICULTIES` 노멀 mult 1 / 나이트메어 8 / 헬 60(보상 ×1/3/8, 보스 ×1/1.6/2.6, 색). `STAGES=10`, `stageMult(stage)=1+(stage-1)×0.3`(10단계 3.7배). `ACT_FACTORS` 체력 [1,1.3,1.7,2.2], 공격 [1,1.25,1.55,1.9], `BASE_MONSTER` hp 70 / atk 9. **ZONES의 hp/atk 필드는 더 이상 쓰지 않음**(xp/gold는 액트별 차등 유지).
+- 엔진: `s.difficulty={tier,stage,unlocked,lockedUntil}`. `zoneStats(s,zone)`이 hp/atk/xp/gold/mat 배율을 계산하고 `spawnEnemy`·`kill`·보스 보상이 이를 사용. 몬스터에 `tier` 저장. `setDifficulty(s,tier,stage)`: 해금 확인 → 같은 값/레이드 중/잠금(`DIFFICULTY_LOCK`=300초 게임 시간) 거부 → 적용 후 보스·부하 외 몬스터/시체 제거, 잠금 시작. 보스 처치 시 현재 tier가 unlocked와 같으면 unlocked+1(최대 헬), 로그 `boss`.
+- 실제 배율 예: 노멀 1단계 ACT I 좀비 hp 105 → 노멀 10단계 389 → 나이트메어 1단계 840 → 나이트메어 10단계 3,108 → 헬 1단계 6,300 → 헬 10단계 23,310. 액트 IV는 같은 단계의 2.2배. 예전 액트별 고정 hp(70/270/750/1700)는 사라졌으므로 노멀 1단계 ACT IV가 이전보다 훨씬 약하다(단계가 진행 축). 액트 해금 레벨(8/20/35)은 그대로.
+- 렌더: `e.tier>0`이면 `drawMonster`가 난이도 색 네모 박스(눈 2개, 위에 몬스터 고유색 띠, 정예는 큼)를 그린다. 나중에 실제 스프라이트로 교체할 자리.
+- UI: 사냥터 화면 상단 `.difficulty-bar`(난이도 탭 3개, 잠긴 난이도는 자물쇠·비활성, 단계 1~10 버튼은 클릭 즉시 적용, 잠금 남은 시간 `#difficulty-lock`은 0.65초마다 갱신). 맵 우상단 DAY 라벨에 "노멀 3단계" 표시. 저장 필드 추가만(version 2), 구 저장은 노멀 1단계·미해금으로 시작. tier>unlocked 등 비정상 값은 복원 거부.
+- 검증: `npm test` 41개(난이도 테스트 추가). 브라우저: 단계 즉시 적용/잠금/나이트메어 비활성, 나이트메어 3단계 fixture에서 박스 몬스터·hp 1,344~1,523 확인. 스크린샷 `difficulty-nightmare.png`, `box-monsters.png`.
+- **테스트 실행 주의**: 다른 세션(워크트리 `DungeonMart-equip`)이 4173/9223을 쓰고 있을 수 있다. `tests/browser-smoke.mjs`는 `BASE`, `DEVTOOLS` 환경변수로 포트를 바꿀 수 있다(예: `PORT=4174 npm start`, Whale `--remote-debugging-port=9224`, `BASE=http://127.0.0.1:4174 DEVTOOLS=http://127.0.0.1:9224 node tests/browser-smoke.mjs`). 다른 세션의 서버/브라우저를 pkill로 죽이지 말 것.
+- 남은 것: 고난이도 몬스터 실제 디자인, 장비 드랍 ilvl에 난이도 반영(미적용), 단계별 해금 조건 없음(난이도 내 자유 선택), 헬 이후 단계 없음.
 
 ## 2026-09-11 · Claude 4차 작업 (오프라인 재료 보상)
 
@@ -161,7 +174,7 @@
 ## 실행·검증
 
 - `/Users/nykim/Code/00.Project/DungeonMart`에서 `npm start` → http://localhost:4173. 추가 패키지 없음, Node 22+.
-- `npm test`: **40개 통과**. 기존 경제/전직/장비/저장, 자연 지형/경로, 해상 입항, 건물 이동/충돌/귀환 목표/되돌리기/장식, 구 저장 보존, 읽기 전용 불러오기, 100개 스킬 목록 검증.
+- `npm test`: **41개 통과**. 기존 경제/전직/장비/저장, 자연 지형/경로, 해상 입항, 건물 이동/충돌/귀환 목표/되돌리기/장식, 구 저장 보존, 읽기 전용 불러오기, 100개 스킬 목록 검증.
 - `node tests/browser-smoke.mjs`: **격리된 Whale DevTools 9223 전용**, 이 프로필 저장을 초기화. 개인 브라우저에 연결 금지. 헤드리스 실행 예: `/Applications/Whale.app/Contents/MacOS/Whale --headless=new --remote-debugging-port=9223 --user-data-dir=/tmp/whale-test --no-first-run --disable-gpu --window-size=1512,982 about:blank` (서버 `npm start` 필요).
 - 브라우저 테스트를 실제 화면에 보이는 컨트롤의 포인터 클릭으로 개편. 통과: 4개 액트/줌/팬/모바일 핀치, 팝업 내부 장비·전직·스킬, 미습득 미리보기/정지/재생, 모든 100개 VFX 그리기, 움직이는 용사 추적, 실제 지도 좌표로 마트 이동/화단·길 배치/undo/새로고침 복원, 항구 영입, 젠 배수 길게 누르기, 구 저장 migration, PC·모바일 넘침/모바일 미리보기 노출.
 - 스크린샷 `/tmp/dungeonmart-review/`: `final-continent.png`, `act-1.png`~`act-4.png`, `town-moved.png`, `harbor-arrival.png`, `profile-overview.png`, `profile-skill-tree.png`, `preview-meteor.png`, `mobile-skills.png`, `mobile-town.png` 등.
