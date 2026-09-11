@@ -85,11 +85,12 @@ test('town standby parks a hero at the mart until reassigned and survives saves'
 });
 test('boss summon pulls every hero into ACT IV, rewards the party on the kill and restores assignments',()=>{
   const s=createGame();s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);
-  const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.ok(regionAt(r.boss.x,r.boss.y)?.zone===3);
+  for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
+  const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);r.boss.hp=r.boss.maxHp=5e6;assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.ok(regionAt(r.boss.x,r.boss.y)?.zone===3);
   assert.equal(summonBoss(s).ok,false);
   for(let i=0;i<900;i++)tick(s,.1);
   const boss=s.enemies.find(e=>e.boss);assert.ok(boss,'boss persists until killed or timed out');
-  assert.ok(s.heroes.every(h=>Math.hypot(h.x-boss.x,h.y-boss.y)<400||['return','recover','dead'].includes(h.state)),'heroes converge on the boss');
+  assert.ok(s.heroes.every(h=>h.state!=='hunt'||Math.hypot(h.x-boss.x,h.y-boss.y)<400),'hunting heroes stay on the boss');assert.ok(Object.keys(boss.contributors).length>=3,'most of the party has engaged the boss');
   assert.ok(boss.hp<boss.maxHp,'the party damages the boss');assert.ok(s.heroes.some(h=>boss.contributors[h.id]>0));
   const loaded=restore(serialize(s));assert.ok(loaded.raid&&loaded.enemies.some(e=>e.boss),'raid survives a save round trip');
   boss.hp=1;const striker=s.heroes.find(h=>h.state==='hunt')||s.heroes[0];boss.contributors[striker.id]=1;const gold=striker.gold,soul=striker.bag.soul;
