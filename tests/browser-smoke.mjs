@@ -1,0 +1,88 @@
+// Optional UI verification against an isolated Chromium DevTools session on port 9223.
+// Requires Node 22+; never point this at a personal browser profile.
+import { writeFile, mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const targets=await(await fetch('http://127.0.0.1:9223/json')).json();
+const target=targets.find(t=>t.type==='page');
+const ws=new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+let id=0;const waiting=new Map(),errors=[];
+ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.id){const p=waiting.get(m.id);waiting.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);};
+const send=(method,params={})=>new Promise((resolve,reject)=>{const i=++id;waiting.set(i,{resolve,reject});ws.send(JSON.stringify({id:i,method,params}));});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function evaluate(expression){const r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw new Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;}
+async function until(expression){for(let i=0;i<60;i++){if(await evaluate(expression))return;await sleep(100);}throw new Error(`Timeout: ${expression}`);}
+async function click(selector){const found=await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e||e.disabled)return false;e.click();return true;})()`);assert.ok(found,`Clickable ${selector}`);await sleep(120);}
+const out='/tmp/dungeonmart-review';await mkdir(out,{recursive:true});
+async function screenshot(name){const r=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});await writeFile(`${out}/${name}.png`,Buffer.from(r.data,'base64'));}
+const camera=()=>evaluate(`(()=>{const e=document.querySelector('#world'),r=e.getBoundingClientRect();return{x:Number(e.dataset.cameraX),y:Number(e.dataset.cameraY),zoom:Number(e.dataset.zoom),left:r.left,top:r.top,width:r.width,height:r.height};})()`);
+const actualClick=async(x,y)=>{await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});await sleep(160);};
+async function tap(selector){const p=await evaluate(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility()&&!e.disabled);if(!e)return null;e.scrollIntoView({block:'center',inline:'nearest'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);assert.ok(p,`Visible actionable control ${selector}`);await actualClick(p.x,p.y);}
+async function worldTap(x,y){const cam=await camera();await actualClick(cam.left+cam.width/2+(x-cam.x)*cam.zoom,cam.top+cam.height/2+(y-cam.y)*cam.zoom);}
+const saved=()=>evaluate(`JSON.parse(localStorage.getItem('dungeon-mart-save-v1'))`);
+async function loadFixture(fixture){const injected=await send('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('dungeon-mart-save-v1',${JSON.stringify(fixture)})`});await send('Page.reload');await until(`document.querySelector('#hero-portrait')`);await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:injected.identifier});await sleep(350);}
+try{
+ await send('Runtime.enable');await send('Page.enable');await send('Emulation.setDeviceMetricsOverride',{width:1512,height:982,deviceScaleFactor:1,mobile:false});
+ await send('Page.navigate',{url:'http://127.0.0.1:4173'});await until(`document.querySelector('#hero-portrait')`);
+ await tap('[data-action="help"]');await tap('[data-action="new-game"]');await tap('[data-action="confirm-new"]');await sleep(400);await tap('[data-action="pause"]');
+ assert.equal((await saved()).treasury,10000);assert.ok(await evaluate(`document.querySelector('.map-frame #resources')!==null`));
+ await tap('[data-action="camera-fit"]');await screenshot('00-overview');assert.ok((await camera()).zoom<.5);
+ for(let zone=0;zone<4;zone++){
+  await tap('#nav [data-view="expedition"]');await tap(`[data-action="zone"][data-zone="${zone}"]`);await tap('#nav [data-view="world"]');await screenshot(`act-${zone+1}`);
+ }
+ await tap('[data-action="camera-home"]');let cam=await camera();
+ await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:cam.width/2,y:cam.height/2,deltaX:0,deltaY:-160});await sleep(150);assert.ok((await camera()).zoom>cam.zoom);
+ cam=await camera();await send('Input.dispatchMouseEvent',{type:'mousePressed',x:cam.width/2,y:cam.height/2,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:cam.width/2+90,y:cam.height/2+35,buttons:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:cam.width/2+90,y:cam.height/2+35,button:'left',clickCount:1});await sleep(150);assert.ok(Math.abs((await camera()).x-cam.x)>20);
+ await tap('[data-action="camera-home"]');await worldTap(1456,970);assert.ok(await evaluate(`document.querySelector('#hero-modal').open && !document.querySelector('#hero-modal #workshop-view').hidden`),'forge opens the equipment tab of the hero popup');await tap('[data-action="close-profile"]');
+ await tap('#nav [data-view="heroes"]');assert.equal(await evaluate(`getComputedStyle(document.querySelector('#hero-list')).gridTemplateColumns.split(' ').length`),3,'roster shows three heroes per row');assert.equal(await evaluate(`document.querySelectorAll('.hero-avatar small').length`),0,'promotion tier badge removed from roster');await tap('.hero-card');assert.ok(await evaluate(`document.querySelector('#hero-modal').open`));
+ const before=await evaluate(`document.querySelector('#hero-portrait').toDataURL()`);
+ await tap('#profile-tabs [data-tab="equipment"]');await tap('[data-action="craft"]');await tap('[data-action="equip"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open && document.querySelector('#hero-modal #workshop-view')!==null`),'equipment stays inside profile');
+ assert.notEqual(await evaluate(`document.querySelector('#hero-portrait').toDataURL()`),before);
+ await tap('#profile-tabs [data-tab="overview"]');await tap('[data-action="costume"][data-value="crimson"]');await screenshot('profile-overview');
+ await tap('#profile-tabs [data-tab="skills"]');await tap('[data-action="preview"][data-id="crusher-1"]');
+ assert.equal(await evaluate(`document.querySelector('#preview-canvas').dataset.skill`),'crusher-1');assert.equal((await saved()).heroes[0].path.length,0);
+ assert.ok(await evaluate(`document.querySelector('#skill-preview').textContent.includes('미습득')`));
+ const previewBefore=await evaluate(`document.querySelector('#preview-canvas').toDataURL()`);await sleep(450);assert.notEqual(await evaluate(`document.querySelector('#preview-canvas').toDataURL()`),previewBefore,'preview animates');
+ await tap('[data-action="preview-pause"]');const frozen=await evaluate(`document.querySelector('#preview-canvas').toDataURL()`);await sleep(200);assert.equal(await evaluate(`document.querySelector('#preview-canvas').toDataURL()`),frozen);await tap('[data-action="preview-replay"]');await screenshot('profile-skill-tree');
+ // Exercise every effect family without altering the selected hero or saved progression.
+ assert.equal(await evaluate(`(async()=>{const v=await import('./src/skill-visuals.js');const c=document.createElement('canvas');c.width=300;c.height=200;const ctx=c.getContext('2d');for(const sk of v.SKILL_CATALOG)for(const t of [.05,.3,.6,.9])v.drawSkillEffect(ctx,sk,{x:30,y:100},{x:150,y:100},t,[{x:150,y:100},{x:200,y:140}]);return v.SKILL_CATALOG.length;})()`),100);
+ await tap('[data-action="profile-next"]');await tap('[data-action="preview"][data-id="undead-1"]');await screenshot('preview-summon');
+ await tap('[data-action="profile-next"]');await tap('[data-action="preview"][data-id="tempest-1"]');await screenshot('preview-lightning');
+ await tap('[data-action="profile-next"]');await tap('[data-action="preview"][data-id="firelord-1"]');await tap('[data-action="preview-replay"]');await sleep(650);await screenshot('preview-meteor');
+ await tap('#profile-tabs [data-tab="hunt"]');await tap('[data-action="profile-follow"]');assert.ok(await evaluate(`!document.querySelector('#hero-modal').open && document.querySelector('#world').dataset.followId`));
+ await tap('[data-action="pause"]');await sleep(900);await tap('[data-action="save"]');const followed=(await saved()).heroes.find(h=>h.classId==='sorceress');cam=await camera();assert.ok(Math.abs(cam.x-followed.x)<25,'follow tracks moving hunter');await tap('[data-action="pause"]');
+ // Editor uses actual map pointer placement, collision rejection, undo and save/reload.
+ await tap('#nav [data-view="town"]');const townBefore=structuredClone((await saved()).town);
+ const target=await evaluate(`(async()=>{const w=await import('./src/world.js');const s=JSON.parse(localStorage.getItem('dungeon-mart-save-v1'));for(let y=944;y<1500;y+=32)for(let x=1392;x<2250;x+=32){if(!w.placementError(s.town,'mart',x,y)&&Math.hypot(x-w.MART.x,y-w.MART.y)>180&&!w.poiAt(x,y))return{x,y};}})()`);
+ assert.ok(target);await worldTap(target.x,target.y);assert.deepEqual((await saved()).town.buildings.mart,target);await screenshot('town-moved');
+ await tap('[data-action="town-tool"][data-type="flowers"]');await worldTap(1328,1488);assert.equal((await saved()).town.decorations.length,1);
+ await tap('[data-action="town-tool"][data-type="path"]');await worldTap(1360,1488);assert.equal((await saved()).town.decorations.length,2);
+ await tap('[data-action="town-undo"]');assert.equal((await saved()).town.decorations.length,1);
+ const townSaved=structuredClone((await saved()).town);await send('Page.reload');await until(`document.querySelector('#hero-portrait')`);await tap('[data-action="save"]');assert.deepEqual((await saved()).town,townSaved,'edited town survives reload');
+ await tap('#nav [data-view="town"]');await tap('[data-action="town-reset"]');assert.deepEqual((await saved()).town,townBefore);await tap('#nav [data-view="world"]');
+ await tap('#nav [data-view="heroes"]');await tap('[data-action="recruit"]');await tap('[data-action="hire"]');assert.equal((await saved()).heroes.at(-1).arrivalStage,-1);await tap('[data-action="profile-follow"]');await screenshot('harbor-arrival');
+ await tap('#nav [data-view="expedition"]');await tap('[data-action="zone"][data-zone="2"]');
+ // Drag a hero chip between board columns with real pointer movement.
+ const dragChip=async(id,zone)=>{const from=await evaluate(`(()=>{const e=document.querySelector('.zone-hero[data-hero="${id}"]');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);const to=await evaluate(`(()=>{const r=document.querySelector('.zone-column[data-drop-zone="${zone}"] .zone-heroes').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+Math.min(r.height/2,40)};})()`);await send('Input.dispatchMouseEvent',{type:'mouseMoved',...from});await send('Input.dispatchMouseEvent',{type:'mousePressed',...from,button:'left',clickCount:1});for(let i=1;i<=6;i++){await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:from.x+(to.x-from.x)*i/6,y:from.y+(to.y-from.y)*i/6,buttons:1});await sleep(30);}await send('Input.dispatchMouseEvent',{type:'mouseReleased',...to,button:'left',clickCount:1});await sleep(220);};
+ assert.equal(await evaluate(`document.querySelectorAll('#nav [data-view]').length`),6,'inventory and promotion leave the bottom menu');
+ const firstHero=(await saved()).heroes[0].id;
+ await dragChip(firstHero,-1);assert.equal((await saved()).heroes[0].standby,true,'dropping on the town column parks the hero');assert.equal(await evaluate(`document.querySelector('#hero-modal').open`),false,'a drag does not open the profile');
+ assert.ok(await evaluate(`document.querySelector('.zone-column[data-drop-zone="-1"] .zone-hero[data-hero="${firstHero}"]')!==null`),'board moves the chip to the town column');await screenshot('zone-board');
+ await dragChip(firstHero,0);assert.equal((await saved()).heroes[0].standby,false);assert.equal((await saved()).heroes[0].zone,0);
+ await dragChip(firstHero,3);assert.equal((await saved()).heroes[0].zone,0,'locked act refuses drops');
+ await tap(`.zone-hero[data-hero="${firstHero}"]`);assert.ok(await evaluate(`document.querySelector('#hero-modal').open`),'clicking a chip opens the profile');await tap('[data-action="close-profile"]');
+ const spawnRect=await evaluate(`(()=>{const e=document.querySelector('[data-action="spawn-rate"][data-zone="2"][data-value="5"]');window.heldSpawn=e;const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+ await send('Input.dispatchMouseEvent',{type:'mousePressed',...spawnRect,button:'left',clickCount:1});await sleep(1200);assert.ok(await evaluate(`heldSpawn===document.querySelector('[data-action="spawn-rate"][data-zone="2"][data-value="5"]')`));await send('Input.dispatchMouseEvent',{type:'mouseReleased',...spawnRect,button:'left',clickCount:1});assert.equal((await saved()).spawnRates[2],5);
+ for(const panel of ['heroes','expedition','bestiary','town','journal']){await tap(`#nav [data-view="${panel}"]`);assert.ok(await evaluate(`(()=>{const m=document.querySelector('#world').getBoundingClientRect(),d=document.querySelector('#management-panel').getBoundingClientRect();return m.height>250&&m.bottom<=d.top+2})()`));}
+ const fixture=await evaluate(`(async()=>{const e=await import('./src/engine.js');const s=e.createGame();s.materials={iron:999,crystal:999,soul:999};s.treasury=4321;for(const h of s.heroes){h.level=40;h.skillPoints=39;h.gold=999;h.hp=e.statsOf(h,s).hp;}s.worldRevision=2;delete s.town;return e.serialize(s);})()`);
+ await loadFixture(fixture);await tap('[data-action="save"]');assert.equal((await saved()).treasury,4321);assert.equal((await saved()).worldRevision,3);
+ await tap('#nav [data-view="heroes"]');await tap('.hero-card');await tap('#profile-tabs [data-tab="skills"]');await tap('[data-action="promote"][data-id="berserker"]');await tap('[data-action="confirm-promote"]');await tap('[data-action="promote"][data-id="blood"]');await tap('[data-action="confirm-promote"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open`));assert.equal((await saved()).heroes[0].path.at(-1),'blood');await tap('[data-action="skill"]');assert.equal((await saved()).heroes[0].skillPoints,38);await screenshot('profile-promoted');
+ await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});assert.equal(await evaluate(`document.querySelector('#hero-modal').open`),false);await tap('#nav [data-view="world"]');
+ await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await sleep(350);assert.ok(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));await tap('[data-action="camera-home"]');await screenshot('mobile-world');
+ await send('Emulation.setTouchEmulationEnabled',{enabled:true});cam=await camera();const cx=cam.width/2,cy=cam.height/2;await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:cx-35,y:cy,id:1},{x:cx+35,y:cy,id:2}]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:cx-65,y:cy,id:1},{x:cx+65,y:cy,id:2}]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(200);assert.ok((await camera()).zoom>cam.zoom);await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+ await tap('#nav [data-view="heroes"]');await tap('.hero-card');await screenshot('mobile-profile');await tap('#profile-tabs [data-tab="skills"]');await tap('[data-action="preview"][data-id="crusher-1"]');await sleep(500);assert.ok(await evaluate(`(()=>{const p=document.querySelector('#preview-canvas').getBoundingClientRect(),d=document.querySelector('#hero-modal').getBoundingClientRect();return p.top>=d.top&&p.bottom<=d.bottom})()`),'mobile skill selection reveals the animated preview');assert.ok(await evaluate(`document.querySelector('#hero-modal').scrollWidth<=document.querySelector('#hero-modal').clientWidth`));await screenshot('mobile-skills');
+ await tap('#profile-tabs [data-tab="equipment"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').scrollWidth<=document.querySelector('#hero-modal').clientWidth`));await screenshot('mobile-equipment');await tap('[data-action="close-profile"]');
+ await tap('#nav [data-view="town"]');assert.ok(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));await screenshot('mobile-town');await tap('#nav [data-view="world"]');
+ await send('Emulation.setDeviceMetricsOverride',{width:1512,height:982,deviceScaleFactor:1,mobile:false});await tap('[data-action="help"]');await tap('[data-action="new-game"]');await tap('[data-action="confirm-new"]');await tap('[data-action="camera-fit"]');await screenshot('final-continent');
+ assert.deepEqual(errors,[],'no runtime exceptions');console.log('PASS: three-column roster, trimmed menu, drag-and-drop zone board, fine pixel grid, connected continent, map gestures, in-profile equipment/promotions/skills, 100 VFX previews, follow, town editing/undo/reload, harbor arrivals, migration, persistent map, desktop/mobile layouts.');console.log(`Screenshots: ${out}`);
+}catch(error){await screenshot('failure');throw error;}finally{ws.close();}

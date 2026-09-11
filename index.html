@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171b18">
+  <meta name="description" content="던전 한가운데, 오늘도 정상 영업. 자동 사냥과 장비 제작으로 운영하는 던전 마트 RPG.">
+  <title>Dungeon Mart — 던전 속 편의점</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23191f19'/%3E%3Cpath d='M6 13h20v13H6zM4 7h24v6H4z' fill='%23b5a173'/%3E%3Cpath d='M14 17h6v9h-6z' fill='%23191f19'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="app-body">
+
+      <main class="workspace">
+        <section class="main-panel">
+          <div id="world-view" class="view world-view">
+            <div class="map-frame">
+      <header class="topbar">
+        <div class="brand"><div class="eyebrow">AN ADVENTURER'S LAST STOP</div><h1>DUNGEON <span>MART</span><span class="alpha-tag">PIXEL ALPHA</span></h1></div>
+        <div class="resources" id="resources"></div>
+        <button class="save-button" data-action="save" title="진행 상황 저장"><span id="save-icon"></span><span id="save-status">자동 저장</span></button>
+      </header>
+              <canvas id="world" tabindex="0" aria-label="확대·축소 및 드래그로 탐색하는 월드 지도"></canvas>
+              <div class="time-controls" id="time-controls"></div><div class="map-topline"><span><i class="status-dot"></i> <b id="map-location">던전 마트</b></span><span id="day-label">DAY 01</span></div>
+              <div class="map-shortcuts" aria-label="지도 바로가기"><button data-action="camera-home" title="마트로 이동 (H)">마트</button><button data-action="camera-arrival">항구</button><button data-action="camera-hero" id="follow-button">헌터 추적</button><button data-action="camera-fit">전체 지도</button><button data-action="view" data-view="town">마을 꾸미기</button></div>
+              <div class="map-zoom" aria-label="지도 확대 축소"><button data-action="camera-out" aria-label="지도 축소">−</button><output id="zoom-label" aria-live="polite">100%</output><button data-action="camera-in" aria-label="지도 확대">+</button><button data-action="expand-map" id="expand-map" aria-label="지도 화면 넓히기">⛶</button></div>
+              <div class="minimap-wrap"><span>WORLD MAP</span><canvas id="minimap" width="180" height="140" aria-label="전체 월드 미니맵. 클릭하여 이동"></canvas></div>
+              <div class="map-hint">휠·핀치: 확대/축소 · 드래그: 이동</div>
+              <div id="map-tooltip" class="map-tooltip" hidden></div>
+            </div>
+          </div>
+        </section>
+        <section class="management-panel" id="management-panel" hidden aria-label="관리 패널">
+          <div class="drawer-heading"><div><span class="eyebrow" id="page-eyebrow">MART MANAGEMENT</span><h2 id="page-title">용사 관리</h2><p id="page-description"></p></div><div class="drawer-actions"><button class="small-button" data-action="profile" id="selected-hero-button">선택 용사</button><button class="small-button" data-action="view" data-view="world" aria-label="관리 패널 접기">접기 ▾</button></div></div>
+        <aside class="roster-panel view" id="heroes-view" hidden>
+          <div class="panel-heading"><div><span class="eyebrow">YOUR ADVENTURERS</span><h2>용사 관리 <span id="hero-count">5 / 20</span></h2></div><button class="icon-button" data-action="recruit" title="용사 영입" aria-label="용사 영입">+</button></div>
+          <div class="roster-summary" id="roster-summary"></div>
+          <div id="hero-list" class="hero-list"></div>
+          <button class="recruit-button" data-action="recruit">+ 새로운 용사 영입 <span>120 G</span></button>
+          <div class="roster-footer"><span class="status-dot"></span>모든 전투와 회복은 자동으로 진행됩니다.</div>
+        </aside>
+          <div id="expedition-view" class="view scroll-view" hidden aria-label="사냥터 배정 보드"></div>
+          <div id="workshop-view" class="view scroll-view" hidden></div>
+          <div id="skills-view" class="view scroll-view" hidden></div>
+          <div id="town-view" class="view scroll-view" hidden></div>
+          <div id="bestiary-view" class="view scroll-view" hidden></div>
+          <div class="activity-panel view scroll-view" id="journal-view" hidden><div class="activity-heading"><span class="eyebrow">MART JOURNAL</span><span>최근 소식</span><span id="kill-counter"></span></div><div id="activity-log"></div></div>
+        </section>
+
+      </main>
+      <nav id="nav" class="bottom-nav" aria-label="게임 메뉴"></nav>
+      <footer class="statusbar"><span><i class="status-dot"></i> 던전 속 편의점 · 영업 중</span><span id="objective"></span><span>LOCAL SAVE · <span id="playtime">00:00</span></span></footer>
+    </div>
+  </div>
+  <dialog id="hero-modal" aria-labelledby="hero-modal-title"><div class="modal-heading"><h2 id="hero-modal-title">용사 정보</h2><button data-action="close-profile" aria-label="용사 정보 닫기">×</button></div><div id="profile-selector"></div><nav id="profile-tabs" aria-label="용사 정보 탭"></nav><div class="profile-scroll" id="profile-scroll"><div class="detail-panel" id="detail-panel"></div><div id="profile-content"></div><div id="profile-hunt" hidden></div></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="modal"><div id="modal-content"></div></dialog>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
