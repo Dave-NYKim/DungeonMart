@@ -29,7 +29,7 @@ export function itemTitle(item, s) { return `${displayName(item)} · ${GRADES[it
 const classNames = b => b.classes ? b.classes.map(c => CLASSES.find(x => x.id === c).name).join('·') : '공용';
 
 export function installGearUI(host, ctx) {
-  const ui = { sel: null, insertSel: null, filter: 'all', sort: 'grade', craftCat: 'weapon', craftBase: 'sword1h', craftGrade: 'normal', craftTier: 1, tab: 'craft' };
+  const ui = { sel: null, confirmSalvage: null, insertSel: null, filter: 'all', sort: 'grade', craftCat: 'weapon', craftBase: 'sword1h', craftGrade: 'normal', craftTier: 1, tab: 'craft' };
   let drag = null, suppressClick = false;
   const S = () => ctx.state(), H = () => ctx.hero();
   const locationOf = id => { const s = S(); if (s.warehouse.includes(id)) return { text: '창고' }; for (const h of s.heroes) { if (h.placed.some(p => p.id === id)) return { text: `${h.name} 장비창`, hero: h }; if (h.bagItems.includes(id)) return { text: `${h.name} 가방`, hero: h }; } if (s.fieldDrops.some(d => d.id === id)) return { text: '빛기둥' }; return { text: '?' }; };
@@ -46,13 +46,13 @@ export function installGearUI(host, ctx) {
   function heroPanel(h, s) {
     const st = statsOf(h, s), bonus = gearBonus(h, s), load = Math.round(st.load * 100);
     const sets = Object.entries(bonus.sets).map(([id, n]) => `<span class="set-chip">${SETS[id].name} ${n}/${SETS[id].pieces.length}</span>`).join('');
-    return `<div class="gear-hero"><div><strong style="color:${CLASSES.find(c => c.id === h.classId).color}">${esc(h.name)}</strong> <small>Lv.${h.level} · 골드 ${ctx.fmt(h.gold)} G · 총 ${effectiveGrid(h).weapon.w * effectiveGrid(h).weapon.h + effectiveGrid(h).armor.w * effectiveGrid(h).armor.h + effectiveGrid(h).accessory.w * effectiveGrid(h).accessory.h}칸</small></div><div class="weight-row" title="무게 100% 초과: 속도 -10% · 120% 초과: -25% · 150% 초과: 배치 불가"><span>무게 ${Math.round(st.weight)} / ${st.capacity}</span><div class="bar weight-bar ${load > 120 ? 'over2' : load > 100 ? 'over' : ''}"><span style="width:${Math.min(100, load / 1.5)}%"></span></div><span>${load}%</span></div>${sets ? `<div class="set-row">${sets}</div>` : ''}<div class="gear-stat-row">${[['공격력', Math.round(st.atk)], ['방어력', Math.round(st.def)], ['체력', Math.round(st.hp)], ['치명타', `${Math.round(st.crit * 100)}%`], ['공속', `${Math.round(st.haste * 100)}%`], ['이동', `${Math.round(st.move * 100)}%`], ['스킬', `${Math.round(st.spell * 100)}%`], ['발견', `${Math.round(st.find * 100)}%`]].map(([n, v]) => `<span><small>${n}</small><b>${v}</b></span>`).join('')}</div></div>`;
+    return `<div class="gear-hero"><div><strong style="color:${CLASSES.find(c => c.id === h.classId).color}">${esc(h.name)}</strong> <small>Lv.${h.level} · 골드 ${ctx.fmt(h.gold)} G · 총 ${effectiveGrid(h).weapon.w * effectiveGrid(h).weapon.h + effectiveGrid(h).armor.w * effectiveGrid(h).armor.h + effectiveGrid(h).accessory.w * effectiveGrid(h).accessory.h}칸</small></div><div class="weight-row"><span>무게 ${Math.round(st.weight)} / ${st.capacity}</span><div class="bar weight-bar ${load > 120 ? 'over2' : load > 100 ? 'over' : ''}"><span style="width:${Math.min(100, load / 1.5)}%"></span></div><span>${load}%</span></div><small class="weight-note">100% 초과 속도 -10% · 120% 초과 -25% · 150% 초과 배치 불가</small>${sets ? `<div class="set-row">${sets}</div>` : ''}<div class="gear-stat-row">${[['공격력', Math.round(st.atk)], ['방어력', Math.round(st.def)], ['체력', Math.round(st.hp)], ['치명타', `${Math.round(st.crit * 100)}%`], ['공속', `${Math.round(st.haste * 100)}%`], ['이동', `${Math.round(st.move * 100)}%`], ['스킬', `${Math.round(st.spell * 100)}%`], ['발견', `${Math.round(st.find * 100)}%`]].map(([n, v]) => `<span><small>${n}</small><b>${v}</b></span>`).join('')}</div></div>`;
   }
   function warehouseHTML(h, s) {
     let list = s.warehouse.map(id => s.items[id]).filter(Boolean);
     if (ui.filter === 'usable') list = list.filter(i => usable(i, h) && fitsSomewhere(i, h)); else if (ui.filter === 'sockets') list = list.filter(i => i.sockets > 0); else if (ui.filter !== 'all') list = list.filter(i => itemBase(i).zone === ui.filter);
     list.sort((a, b) => ui.sort === 'grade' ? GRADES[b.grade].order - GRADES[a.grade].order || b.ilvl - a.ilvl : ui.sort === 'price' ? b.price - a.price : b.ilvl - a.ilvl);
-    const rows = list.map(i => { const b = itemBase(i), ok = usable(i, h), fit = ok && fitsSomewhere(i, h); return `<div class="wh-item ${ui.sel === i.id ? 'selected' : ''} ${ok ? '' : 'unusable'}" data-drag-id="${i.id}" data-gear="select" data-id="${i.id}" style="--item-color:${gradeColor(i)}" title="${esc(itemTitle(i, s))}"><span class="wh-icon">${ctx.icon(iconFor(i))}</span><div class="wh-text"><strong>${esc(displayName(i))}</strong><small>${GRADES[i.grade].name} · ${TIER_NAMES[i.tier]} ${b.names[i.tier - 1]} · ${i.w}×${i.h} · ${weightOf(i)}kg · ${classNames(b)}${i.sockets ? ` · 홈 ${i.inserts.filter(Boolean).length}/${i.sockets}` : ''}${i.purchased ? '' : ` · ${ctx.fmt(Math.round(i.price * (1 + statsOf(h, s).price)))} G`}</small></div><button class="small-button" data-gear="auto" data-id="${i.id}" ${fit ? '' : 'disabled'} title="${!ok ? '이 용사는 사용할 수 없음' : !fit ? '빈 자리 없음' : '빈 자리에 자동 배치'}">${!ok ? '사용 불가' : '배치'}</button></div>`; }).join('');
+    const rows = list.map(i => { const b = itemBase(i), ok = usable(i, h), fit = ok && fitsSomewhere(i, h); return `<div class="wh-item ${ui.sel === i.id ? 'selected' : ''} ${ok ? '' : 'unusable'}" data-drag-id="${i.id}" data-gear="select" data-id="${i.id}" style="--item-color:${gradeColor(i)}" title="${esc(itemTitle(i, s))}"><span class="wh-icon">${ctx.icon(iconFor(i))}</span><div class="wh-text"><strong>${esc(displayName(i))}</strong><small>${GRADES[i.grade].name} · ${TIER_NAMES[i.tier]} ${b.names[i.tier - 1]} · ${i.w}×${i.h} · ${weightOf(i)}kg · ${classNames(b)}${i.sockets ? ` · 홈 ${i.inserts.filter(Boolean).length}/${i.sockets}` : ''}${i.purchased ? '' : ` · ${ctx.fmt(Math.round(i.price * (1 + statsOf(h, s).price)))} G`}</small></div><button class="small-button" data-gear="auto" data-id="${i.id}" ${fit ? '' : 'disabled'} aria-label="${!ok ? '이 용사는 사용할 수 없음' : !fit ? '빈 자리 없음' : '빈 자리에 자동 배치'}">${!ok ? '사용 불가' : !fit ? '자리 없음' : '배치'}</button></div>`; }).join('');
     return `<div class="wh-head"><h4>마을 창고 <small>${warehouseUsed(s)} / ${warehouseCapacity(s)}칸</small></h4><div class="wh-controls"><select id="wh-filter">${[['all', '전체'], ['usable', '이 용사 사용 가능'], ['weapon', '무기·보조'], ['armor', '방어구'], ['accessory', '장신구'], ['sockets', '홈 있음']].map(([v, n]) => `<option value="${v}" ${ui.filter === v ? 'selected' : ''}>${n}</option>`).join('')}</select><select id="wh-sort">${[['grade', '등급순'], ['ilvl', '레벨순'], ['price', '가격순']].map(([v, n]) => `<option value="${v}" ${ui.sort === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div><div class="wh-list" data-wh-drop>${rows || '<div class="empty-state">창고가 비어 있습니다. 용사가 귀환하면 전리품이 들어오고, 아래 제작소에서 만들 수도 있습니다.</div>'}</div>`;
   }
   function detailHTML(h, s) {
@@ -66,7 +66,7 @@ export function installGearUI(host, ctx) {
     if (item.grade === 'normal' && !item.inserts.some(Boolean)) recipes.push(['upgrade', '매직으로 승급 · 마력석 5']); else if (item.grade === 'magic') recipes.push(['upgrade', '레어로 승급 · 정제 보석 3 + 마력석 20']);
     if (['set', 'unique'].includes(item.grade) && item.tier < 3) recipes.push(['tierUp', `${item.tier + 1}단으로 · 영혼 결정 ${item.tier === 1 ? 30 : 80} + 완전 보석 ${item.tier === 1 ? 2 : 3}`]);
     const canInsert = ui.insertSel && item.inserts.includes(null) && ['창고', `${h.name} 장비창`].includes(loc.text);
-    return `<div class="gear-detail" style="--item-color:${gradeColor(item)}"><div class="detail-head"><span class="wh-icon big">${ctx.icon(iconFor(item))}</span><div><h4>${esc(displayName(item))}</h4><small>${item.mantra ? '진언 · ' : ''}${GRADES[item.grade].name} · ${TIER_NAMES[item.tier]} ${b.names[item.tier - 1]} · ${item.w}×${item.h} · ${weightOf(item)}kg · Lv.${levelReq(item)} · ${classNames(b)} · ${loc.text}${item.purchased ? ' · 구매 완료' : ` · ${ctx.fmt(Math.round(item.price * (1 + st.price)))} G`}</small></div></div><ul class="detail-lines">${lines.map(l => `<li class="${l.kind}" ${l.color ? `style="color:${l.color}"` : ''}>${esc(l.text)}</li>`).join('')}</ul>${setBlock}<div class="detail-actions">${!placedHere ? `<button class="primary-button" data-gear="auto" data-id="${item.id}" ${usable(item, h) && fitsSomewhere(item, h) && loc.text !== '빛기둥' ? '' : 'disabled'}>${h.name}에게 배치</button>` : `<button class="small-button" data-gear="unplace" data-id="${item.id}">창고로 보내기</button><button class="small-button" data-gear="rotate" data-id="${item.id}" ${item.w === item.h ? 'disabled' : ''}>회전</button>`}${loc.text === '창고' ? `<button class="small-button danger" data-gear="salvage" data-id="${item.id}" title="${Object.entries(salvageValue(item)).map(([k, v]) => `${MAT[k]} ${v}`).join(', ')}">분해</button>` : ''}${canInsert ? `<button class="small-button" data-gear="insert" data-id="${item.id}">${esc(insertName(ui.insertSel))} 박기</button>` : ''}</div>${recipes.length ? `<div class="detail-recipes">${recipes.map(([r, label]) => `<button class="small-button" data-gear="recipe" data-recipe="${r}" data-id="${item.id}">${RECIPES[r].name}<small>${label}</small></button>`).join('')}</div>` : ''}</div>`;
+    return `<div class="gear-detail" style="--item-color:${gradeColor(item)}"><div class="detail-head"><span class="wh-icon big">${ctx.icon(iconFor(item))}</span><div><h4>${esc(displayName(item))}</h4><small>${item.mantra ? '진언 · ' : ''}${GRADES[item.grade].name} · ${TIER_NAMES[item.tier]} ${b.names[item.tier - 1]} · ${item.w}×${item.h} · ${weightOf(item)}kg · Lv.${levelReq(item)} · ${classNames(b)} · ${loc.text}${item.purchased ? ' · 구매 완료' : ` · ${ctx.fmt(Math.round(item.price * (1 + st.price)))} G`}</small></div></div><ul class="detail-lines">${lines.map(l => `<li class="${l.kind}" ${l.color ? `style="color:${l.color}"` : ''}>${esc(l.text)}</li>`).join('')}</ul>${setBlock}<div class="detail-actions">${!placedHere ? `<button class="primary-button" data-gear="auto" data-id="${item.id}" ${usable(item, h) && fitsSomewhere(item, h) && loc.text !== '빛기둥' ? '' : 'disabled'}>${h.name}에게 배치</button>` : `<button class="small-button" data-gear="unplace" data-id="${item.id}">창고로 보내기</button><button class="small-button" data-gear="rotate" data-id="${item.id}" ${item.w === item.h ? 'disabled' : ''}>회전</button>`}${loc.text === '창고' ? (ui.confirmSalvage === item.id ? `<span class="confirm-inline">분해하면 ${Object.entries(salvageValue(item)).map(([k, v]) => `${MAT[k]} ${v}`).join(', ')} 반환 · 되돌릴 수 없음</span><button class="small-button danger" data-gear="salvage-confirm" data-id="${item.id}">분해 확정</button><button class="small-button" data-gear="salvage-cancel">취소</button>` : `<button class="small-button danger" data-gear="salvage" data-id="${item.id}">분해</button>`) : ''}${canInsert ? `<button class="small-button" data-gear="insert" data-id="${item.id}">${esc(insertName(ui.insertSel))} 박기</button>` : ''}</div>${recipes.length ? `<div class="detail-recipes">${recipes.map(([r, label]) => `<button class="small-button" data-gear="recipe" data-recipe="${r}" data-id="${item.id}">${RECIPES[r].name}<small>${label}</small></button>`).join('')}</div>` : ''}</div>`;
   }
   function drawerHTML(s) {
     const gems = Object.entries(s.drawer.gems).filter(([, n]) => n > 0).sort(), runes = Object.entries(s.drawer.runes).filter(([, n]) => n > 0).sort((a, b) => RUNE_LIST.indexOf(RUNES[a[0]]) - RUNE_LIST.indexOf(RUNES[b[0]]));
@@ -83,31 +83,43 @@ export function installGearUI(host, ctx) {
     return `<div class="facility-grid">${[['forge', '제작대', '제작 아이템 레벨 +12 · Lv.2 2단, Lv.4 3단 베이스'], ['clinic', '회복 시설', '초당 회복 속도 +4%p'], ['warehouse', '창고', `보관 ${WAREHOUSE_SIZES.join(' → ')}칸`]].map(([id, n, d]) => `<div class="surface"><h3>${n} <span class="muted">Lv.${s.upgrades[id]}</span></h3><p>${d}</p><button class="small-button" data-action="facility" data-id="${id}" ${s.upgrades[id] >= 5 ? 'disabled' : ''}>${s.upgrades[id] >= 5 ? '최고 레벨' : `시설 개선 · ${150 * (s.upgrades[id] + 1)} G`}</button></div>`).join('')}</div>`;
   }
   function render() {
-    const s = S(), h = H(); if (!s.items[ui.sel]) ui.sel = null; if (ui.insertSel && (ui.insertSel.startsWith('gem:') ? !s.drawer.gems[ui.insertSel.slice(4)] : !s.drawer.runes[ui.insertSel.slice(5)])) ui.insertSel = null;
+    const s = S(), h = H(); if (!s.items[ui.sel]) ui.sel = null; if (ui.confirmSalvage && ui.confirmSalvage !== ui.sel) ui.confirmSalvage = null; if (ui.insertSel && (ui.insertSel.startsWith('gem:') ? !s.drawer.gems[ui.insertSel.slice(4)] : !s.drawer.runes[ui.insertSel.slice(5)])) ui.insertSel = null;
     const scroll = host.querySelector('.wh-list')?.scrollTop || 0;
     host.innerHTML = `<div class="gear-layout"><section class="gear-left">${heroPanel(h, s)}${['weapon', 'armor', 'accessory'].map(z => gridHTML(h, s, z)).join('')}<p class="gear-hint">창고에서 끌어다 놓거나 <b>배치</b>를 누르세요. 격자 안에서도 끌어 옮길 수 있고, 창고 목록에 놓으면 빼냅니다. 회색 빗금은 조건 미달로 효과가 없는 장비입니다.</p></section><section class="gear-right">${warehouseHTML(h, s)}</section><section class="gear-bottom">${detailHTML(h, s)}${drawerHTML(s)}${craftHTML(h, s)}${facilityHTML(s)}</section></div>`;
     const list = host.querySelector('.wh-list'); if (list) list.scrollTop = scroll;
+    if (town) renderTown();
   }
-  host.addEventListener('click', e => {
+  // 마을 메뉴의 기본 화면: 창고 목록 + 선택 장비 상세 + 시설. 격자 없이 '배치' 버튼으로 선택 용사에게 장착한다.
+  let town = null; const bound = new WeakSet();
+  function renderTown() {
+    const s = S(), h = H(); if (!s.items[ui.sel]) ui.sel = null; if (ui.confirmSalvage && ui.confirmSalvage !== ui.sel) ui.confirmSalvage = null;
+    const scroll = town.el.querySelector('.wh-list')?.scrollTop || 0;
+    town.el.innerHTML = `${town.prefix()}${warehouseHTML(h, s)}${detailHTML(h, s)}${facilityHTML(s)}`;
+    const list = town.el.querySelector('.wh-list'); if (list) list.scrollTop = scroll;
+  }
+  const onClick = e => {
     const b = e.target.closest('[data-gear]'); if (!b || b.disabled || suppressClick) return;
     const s = S(), h = H(), a = b.dataset.gear, id = b.dataset.id;
     if (a === 'select') { ui.sel = ui.sel === id && e.target.closest('.grid-item') ? null : id; render(); return; }
     if (a === 'auto') { ui.sel = id; ctx.result(autoPlace(s, h, id)); return; }
     if (a === 'unplace') { ctx.result(unplaceItem(s, h, id)); return; }
     if (a === 'rotate') { ctx.result(rotateItem(s, h, id)); return; }
-    if (a === 'salvage') { ui.sel = null; ctx.result(salvage(s, id)); return; }
+    if (a === 'salvage') { ui.confirmSalvage = id; render(); return; } // destructive: confirm inline first
+    if (a === 'salvage-cancel') { ui.confirmSalvage = null; render(); return; }
+    if (a === 'salvage-confirm') { ui.sel = null; ui.confirmSalvage = null; ctx.result(salvage(s, id)); return; }
     if (a === 'insert') { ctx.result(insertSocket(s, id, ui.insertSel)); return; }
     if (a === 'recipe') { ctx.result(combine(s, b.dataset.recipe, { id })); return; }
     if (a === 'pick-insert') { ui.insertSel = ui.insertSel === b.dataset.key ? null : b.dataset.key; render(); return; }
     if (a === 'merge') { const [type, ...rest] = b.dataset.payload.split(':'); ctx.result(type === 'gem' ? combine(s, 'gemUp', { gem: rest.join(':') }) : combine(s, 'runeUp', { rune: rest[0] })); return; }
     if (a === 'craft') { const r = craft(s, ui.craftBase, ui.craftGrade, ui.craftTier); if (r.ok) ui.sel = r.item.id; ctx.result(r); return; }
-  });
-  host.addEventListener('change', e => {
+  };
+  const onChange = e => {
     const el = e.target; if (!el.id) return;
     if (el.id === 'wh-filter') ui.filter = el.value; if (el.id === 'wh-sort') ui.sort = el.value;
     if (el.id === 'craft-cat') ui.craftCat = el.value; if (el.id === 'craft-base') ui.craftBase = el.value; if (el.id === 'craft-grade') ui.craftGrade = el.value; if (el.id === 'craft-tier') ui.craftTier = Number(el.value);
     if (['wh-filter', 'wh-sort', 'craft-cat', 'craft-base', 'craft-grade', 'craft-tier'].includes(el.id)) render();
-  });
+  };
+  host.addEventListener('click', onClick); host.addEventListener('change', onChange);
   // ---- 드래그 앤 드롭: 격자 아이템/창고 행 → 격자 셀 또는 창고 목록
   const cellAt = (x, y) => document.elementsFromPoint(x, y).find(el => el.classList?.contains('grid-cell')) || null;
   const clearMarks = () => { for (const c of host.querySelectorAll('.grid-cell.ok,.grid-cell.bad')) c.classList.remove('ok', 'bad'); for (const z of host.querySelectorAll('.wh-list.drop-target')) z.classList.remove('drop-target'); };
@@ -148,5 +160,5 @@ export function installGearUI(host, ctx) {
   };
   document.addEventListener('pointerup', e => endDrag(e, true)); document.addEventListener('pointercancel', e => endDrag(e, false));
   document.addEventListener('keydown', e => { if (drag?.moved && (e.key === 'r' || e.key === 'R')) { drag.rotated = !drag.rotated; const item = S().items[drag.id], d = dims({ ...item, rotated: drag.rotated }); drag.ghost.style.setProperty('--w', d.w); drag.ghost.style.setProperty('--h', d.h); } });
-  return { render, ui, select: id => { ui.sel = id; } };
+  return { render, ui, select: id => { ui.sel = id; }, mountTown(el, prefix) { if (!bound.has(el)) { bound.add(el); el.addEventListener('click', onClick); el.addEventListener('change', onChange); } town = { el, prefix }; renderTown(); }, unmountTown() { town = null; } };
 }

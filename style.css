@@ -306,3 +306,53 @@ body.gear-dragging{cursor:grabbing;user-select:none}
 .diff-stage.active{background:#41583a;border-color:#abb983;color:#f3e2b1;font-weight:700}
 .diff-hint{display:block;margin-top:6px;font-size:8px;color:#8a967f}
 @media(max-width:720px){.diff-stages{grid-template-columns:repeat(5,minmax(0,1fr))}.diff-hint{display:none}}
+
+/* 2026-09-11 · 모바일 터치 우선 (docs/MOBILE_UI.md). 탭 지연 제거, 44px 탭 타깃, 폰에서 전체 폭 시트. */
+body{touch-action:manipulation}button,select,label,summary,.hero-card{touch-action:manipulation}
+button:active:not(:disabled){filter:brightness(1.15)}
+.skill-up{position:relative}.skill-up small{position:absolute;bottom:2px;right:3px;font-size:8px;line-height:1;color:#e5c98f;font-weight:700}
+.weight-note{display:block;font-size:8px;color:#9ba38b;line-height:1.5}
+.confirm-inline{font-size:10px;color:#f0b3a5;align-self:center;line-height:1.5;flex-basis:100%}
+.town-confirm-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.town-confirm-row .town-feedback{flex:1;min-width:0}.town-confirm-row .primary-button{flex-shrink:0}
+.modal-footer{flex-wrap:wrap}
+@media(pointer:coarse){
+ button{min-height:44px}
+ .zone-column .zone-title{min-height:32px}
+ .bottom-nav .nav-button{min-height:56px}
+ .time-controls button,.map-zoom button{min-width:44px;min-height:44px;width:auto;height:auto}
+ .map-shortcuts{flex-wrap:wrap;right:96px}.map-shortcuts button{flex:1 1 30%;min-height:40px;font-size:10px;padding:6px}.map-shortcuts button.danger{flex:1 1 100%}
+ .icon-button{width:44px;height:44px}
+ .palette-swatch{width:36px;height:36px}.palette-row{gap:12px}
+ .text-button{min-height:40px;padding:8px 10px}
+ .modal-heading button{width:44px;height:44px;font-size:28px;display:inline-flex;align-items:center;justify-content:center}
+ .small-button{min-height:40px}.primary-button{min-height:46px}
+ #profile-tabs button{min-height:46px}
+ select{min-height:44px;font-size:16px}
+ .wh-item{min-height:52px}.wh-item .small-button{min-height:40px}
+ .drawer-chip button{min-height:40px}
+ .zone-column footer .spawn-options .small-button{min-height:40px}
+ .zone-hero{width:52px;height:74px}
+ .gear-layout{--cell:32px}.drag-ghost-item{width:calc(var(--w) * 32px);height:calc(var(--h) * 32px)}
+ .drawer-actions button,.save-button{min-height:40px}
+ .tree-skill{min-height:48px}.hero-card{min-height:52px}
+ .modal-footer button{flex:1 1 45%}
+ .map-tooltip{font-size:12px;padding:10px 12px}
+ .mantra-list summary{min-height:40px;display:flex;align-items:center}
+ .recruit-button{min-height:44px}
+}
+@media(pointer:coarse) and (max-width:720px){
+ .time-controls button,.map-zoom button{min-width:40px;min-height:40px}
+ .map-shortcuts{top:138px;right:8px;max-width:none}.map-shortcuts button{font-size:9px;padding:5px 4px}
+ .boss-hud{top:230px}
+ .bottom-nav .nav-button svg{width:22px;height:22px}.bottom-nav .nav-button span{font-size:10px}
+ .management-panel{height:44dvh}
+ #modal{width:calc(100vw - 16px);max-width:none;max-height:90dvh;overflow:auto;padding:16px}
+ .drawer-actions button{font-size:10px;padding:6px 8px}
+ .gear-layout{--cell:30px}.drag-ghost-item{width:calc(var(--w) * 30px);height:calc(var(--h) * 30px)}
+ .minimap-wrap canvas{width:104px;height:81px}
+}
+
+/* 마을 메뉴: 창고 기본 + 편집 버튼 */
+.town-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.town-head h3{font-size:16px;color:#ecdfb8}.town-head p{font-size:11px;color:#bac9ac;line-height:1.7;margin-top:5px}.town-head .small-button{flex-shrink:0}
+#town-view .wh-list{max-height:none;min-height:80px}#town-view .gear-detail{margin-top:10px}#town-view .facility-grid{margin:12px 0 0}
+@media(max-width:720px){.town-head{display:block}.town-head .small-button{margin-top:8px;width:100%;justify-content:center}}

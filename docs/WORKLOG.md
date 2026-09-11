@@ -113,3 +113,12 @@
 - 구현: `DIFFICULTIES`(배율 1/8/60), 단계당 +30%, 액트 계수 1~2.2. 엔진 `zoneStats`/`setDifficulty`/`s.difficulty`, 보스 승리 시 해금. 사냥터 화면 난이도 바, DAY 라벨 표시, 박스 몬스터 렌더. 스모크 테스트 포트를 환경변수로 분리.
 - 변경 파일: src/data.js, src/engine.js, src/render.js, src/app.js, style.css, tests/engine.test.mjs, tests/browser-smoke.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
 - 검증: npm test 41개 통과, 격리 브라우저(4174/9224)에서 난이도 바·박스 몬스터 확인, browser-smoke 통과.
+
+## 2026-09-11 · 모바일 터치 전환 1차 (Claude)
+
+- 요청: 핸드폰으로 하는 게임. 모든 UI 터치 친화적. 규칙을 md에 녹일 것.
+- 문서: `docs/MOBILE_UI.md`(기준 화면·탭 타깃 44px·호버 금지·Pointer Events·시트·검증 절차·감사 목록), AGENTS/HANDOFF/DESIGN/README에 원칙 반영.
+- 구현: 몬스터 탭 툴팁 고정, 마을 편집 탭 미리보기→재탭 확정, 보스 소환·분해 확인 단계, title 의존 제거(스킬 비용·무게 페널티·배치 사유·빛기둥), `pointer:coarse` 탭 타깃 확대, `touch-action:manipulation`, 터치 문구 통일.
+- 마을 메뉴: 기본 화면을 마을 창고(목록·상세·시설)로, '마을 편집' 버튼을 눌러야 꾸미기 모드. '편집 완료'로 복귀.
+- 변경 파일: src/app.js, src/gear-ui.js, index.html, style.css, tests/browser-smoke.mjs, 문서 5종.
+- 검증: npm test 41개 통과, node --check 통과. 브라우저 스모크·실기기 검증은 미완(로컬 Chromium 없음). 미커밋 상태.
