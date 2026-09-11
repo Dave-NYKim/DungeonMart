@@ -383,3 +383,43 @@ button:active:not(:disabled){filter:brightness(1.15)}
 @media(max-width:720px){.town-head{display:block}.town-head .small-button{margin-top:8px;width:100%;justify-content:center}}
 /* 모바일 터치 타깃(docs/MOBILE_UI.md): 지도 위 버튼은 44px 이상 */
 @media(max-width:720px){.map-shortcuts button,.zone-shortcut,#time-controls button,.map-zoom button{min-height:44px;min-width:44px}.zone-shortcut{padding:4px 4px!important}.map-shortcuts{max-width:calc(100% - 16px)}}
+
+/* 지도 우하단 코너: 현재 위치 · 아이콘 바로가기 · 미니맵을 한 묶음으로 */
+.map-corner{position:absolute;right:12px;bottom:14px;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
+.map-corner>*{pointer-events:auto}
+.map-corner .map-location-chip{font:8px monospace;letter-spacing:1px;color:#e6dfb7;background:#26392de8;border:1px solid #8e9b73;padding:5px 8px;box-shadow:2px 2px #25352c;display:inline-flex;align-items:center;gap:5px;max-width:240px}
+.map-corner .map-location-chip b{font-weight:500;font-size:11px;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-corner .map-shortcuts{position:static;top:auto;left:auto;right:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;max-width:none;flex-wrap:nowrap;pointer-events:auto;justify-content:flex-end}
+.map-corner .shortcut-group{display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end}
+.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:36px;height:36px;min-width:36px;min-height:36px;padding:0!important;display:inline-flex;flex-direction:row;align-items:center;justify-content:center;flex:none;font:700 11px monospace;line-height:1}
+.map-corner .map-shortcuts button svg{width:18px;height:18px}
+.map-corner .map-shortcuts button b{font-size:12px;letter-spacing:0}
+.map-corner .map-shortcuts button small{display:none}
+.map-corner .minimap-wrap{position:static;bottom:auto;right:auto}
+@media(pointer:coarse){.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:44px;height:44px;min-width:44px;min-height:44px}}
+@media(max-width:720px){.map-corner{right:8px;bottom:10px;gap:4px}.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:40px;height:40px;min-width:40px;min-height:40px}.map-corner .map-location-chip{max-width:200px}}
+@media(pointer:coarse) and (max-width:720px){.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:44px;height:44px;min-width:44px;min-height:44px}}
+@media(max-height:550px){.map-corner{display:none}}
+
+/* 보스 아이콘 쿨타임 배지 */
+.map-corner #summon-boss{position:relative}
+.map-corner #summon-boss .cd-badge{position:absolute;left:0;right:0;bottom:1px;font:700 7px monospace;letter-spacing:0;text-align:center;color:#ffd6b0;background:#1a0e10cc;line-height:9px;pointer-events:none}
+.map-corner #summon-boss.cooldown{border-color:#7a5a50;background:#3a2a2c;opacity:.9}.map-corner #summon-boss.cooldown svg{opacity:.6}
+
+/* 코너 아이콘 축소(이전의 1/4 면적) · 보스 소환은 좌상단 */
+.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:22px;height:22px;min-width:22px;min-height:22px;font-size:9px;border-width:1px;box-shadow:1px 1px #152822}
+.map-corner .map-shortcuts button svg{width:12px;height:12px}.map-corner .map-shortcuts button b{font-size:9px}
+.map-corner .shortcut-group{gap:3px}.map-corner{gap:4px}
+.map-corner .map-location-chip{padding:3px 6px}.map-corner .map-location-chip b{font-size:10px}
+@media(pointer:coarse){.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:24px;height:24px;min-width:24px;min-height:24px}}
+@media(max-width:720px){.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:24px;height:24px;min-width:24px;min-height:24px}}
+@media(pointer:coarse) and (max-width:720px){.map-corner .map-shortcuts button,.map-corner .zone-shortcut{width:24px;height:24px;min-width:24px;min-height:24px}}
+.boss-corner{position:absolute;left:12px;top:104px;z-index:3}
+.boss-corner #summon-boss{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font-size:10px;background:#5a2a26eb;border:2px solid #b0655a;color:#f5d6c4;box-shadow:2px 2px #152822;min-height:32px}
+.boss-corner #summon-boss svg{width:14px;height:14px}.boss-corner #summon-boss span{font-family:monospace;letter-spacing:.3px}
+.boss-corner #summon-boss:hover{background:#7a3a34}.boss-corner #summon-boss.active{background:#8a4a30;border-color:#f0a070;color:#fff0d8;opacity:1}
+.boss-corner #summon-boss.cooldown{background:#3a2a2ceb;border-color:#7a5a50;color:#d8b8a8}.boss-corner #summon-boss.cooldown svg{opacity:.6}
+@media(pointer:coarse){.boss-corner #summon-boss{min-height:44px;padding:8px 12px}}
+@media(max-width:720px){.boss-corner{left:8px;top:120px}}
+@media(max-height:550px){.boss-corner{top:70px}}
+@media(pointer:coarse),(max-width:720px){.map-frame .boss-corner #summon-boss{min-height:44px;padding:8px 12px}}

@@ -65,7 +65,7 @@ export function makeHero(s, classId, grade = 0) {
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 1, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -119,6 +119,17 @@ const zoneOf = (s, h) => s.raid ? 3 : h.zone;
 const restingOf = (s, h) => h.standby && !s.raid;
 export const RAID_COST = 500, RAID_DURATION = 240, RAID_COOLDOWN = 1200;
 export const raidCooldownLeft = s => Math.max(0, (s.raidReadyAt || 0) - s.time);
+export const RAID_RESET_PER_MINUTE = 100;
+export const raidResetCost = s => Math.ceil(raidCooldownLeft(s) / 60) * RAID_RESET_PER_MINUTE;
+export function resetRaidCooldown(s) {
+  const left = raidCooldownLeft(s);
+  if (left <= 0) return { ok: false, message: '봉인문은 이미 열려 있습니다.' };
+  const cost = raidResetCost(s);
+  if (s.treasury < cost) return { ok: false, message: `쿨타임 초기화에는 운영금 ${cost} G가 필요합니다.` };
+  s.treasury -= cost; s.raidReadyAt = s.time;
+  log(s, `운영금 ${cost} G로 봉인문 쿨타임 ${Math.ceil(left / 60)}분을 초기화했습니다.`, 'system');
+  return { ok: true, message: `쿨타임을 초기화했습니다 (${cost} G). 이제 보스를 소환할 수 있습니다.` };
+}
 function nearby(s, target, radius = 80) { return s.enemies.filter(e => e.hp > 0 && e.zone === target.zone && dist(e, target) < radius); }
 function heal(s, h, value, source = h) {
   const max = statsOf(h, s).hp, extra = Math.max(0, h.hp + value - max);
@@ -324,9 +335,28 @@ function locate(s, id) {
   return null;
 }
 // 창고에 자리가 없으면 자동 분해해 재료로 돌린다.
+const PROTECTED_GRADES = ['set', 'unique'];
+// Free warehouse cells for a set/unique item by salvaging the cheapest common gear first. Never touches set/unique.
+function makeRoom(s, needed) {
+  for (const g of ['normal', 'magic', 'rare']) {
+    const ids = s.warehouse.filter(id => s.items[id]?.grade === g).sort((a, b) => (s.items[a].ilvl || 0) - (s.items[b].ilvl || 0));
+    for (const id of ids) {
+      if (warehouseUsed(s) + needed <= warehouseCapacity(s)) return true;
+      for (const [k, v] of Object.entries(salvageValue(s.items[id]))) s.materials[k] += v;
+      destroyItem(s, id);
+    }
+  }
+  return warehouseUsed(s) + needed <= warehouseCapacity(s);
+}
 export function storeItem(s, id, why = '입고') {
   const item = s.items[id]; if (!item) return false;
-  if (warehouseUsed(s) + item.w * item.h <= warehouseCapacity(s)) { s.warehouse.push(id); return true; }
+  const need = item.w * item.h, protectedItem = PROTECTED_GRADES.includes(item.grade);
+  if (protectedItem && warehouseUsed(s) + need > warehouseCapacity(s)) {
+    const before = s.warehouse.length;
+    if (makeRoom(s, need)) log(s, `${displayName(item)} 자리를 만들려고 낮은 등급 장비 ${before - s.warehouse.length}개를 자동 분해했습니다.`, 'info');
+  }
+  if (warehouseUsed(s) + need <= warehouseCapacity(s)) { s.warehouse.push(id); return true; }
+  if (protectedItem) return false; // set/unique are never auto-salvaged; the caller keeps the item where it was
   for (const [k, v] of Object.entries(salvageValue(item))) s.materials[k] += v;
   log(s, `창고가 가득 차 ${displayName(item)} 자동 분해 (${why})`, 'info');
   destroyItem(s, id);
@@ -343,7 +373,7 @@ function dropLoot(s, e, participants) {
     const item = registerItem(s, generateItem({ ilvl, grade, kind, classId: owner.classId, findPct, pity: s.pity, codex: s.codex }));
     if (item.grade === 'set' || item.grade === 'unique') {
       s.pity = 0; s.fieldDrops.push({ id: item.id, zone: e.zone, x: Math.round(e.x), y: Math.round(e.y), expires: s.time + FIELD_DROP_TIME });
-      if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); storeItem(s, old.id, '오래된 빛기둥'); }
+      if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); if (!storeItem(s, old.id, '오래된 빛기둥')) s.fieldDrops.unshift(old); }
       effect(s, e.x, e.y - 30, item.grade === 'set' ? '세트!' : '유니크!', GRADES[item.grade].color);
       log(s, `✦ ${GRADES[item.grade].name} ${item.name} 발견! 지도의 빛기둥을 클릭해 획득하세요.`, 'loot');
     } else {
@@ -371,7 +401,7 @@ function bossLoot(s, e, participants) {
     const item = registerItem(s, generateItem({ ilvl, grade, kind: 'boss', classId: owner.classId, findPct, codex: s.codex, source: 'boss' }));
     if (item.grade === 'set' || item.grade === 'unique') rare = true;
     s.fieldDrops.push({ id: item.id, zone: e.zone, x: Math.round(e.x + (i - 1) * 26), y: Math.round(e.y + 10), expires: s.time + FIELD_DROP_TIME });
-    if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); storeItem(s, old.id, '오래된 빛기둥'); }
+    if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); if (!storeItem(s, old.id, '오래된 빛기둥')) s.fieldDrops.unshift(old); }
     log(s, `${GRADES[item.grade].name} ${item.name} · 보스 전리품 빛기둥`, 'loot');
   }
   s.bossPity = rare ? 0 : (s.bossPity || 0) + 1;
@@ -391,11 +421,12 @@ export function salvageAll(s, grade) {
 export function pickupFieldDrop(s, id) {
   const drop = s.fieldDrops.find(d => d.id === id), item = s.items[id];
   if (!drop || !item) return { ok: false, message: '이미 사라진 전리품입니다.' };
+  const stored = storeItem(s, id, '빛기둥 획득');
+  if (!stored) return { ok: false, message: `창고에 ${item.w}×${item.h}칸이 비지 않아 ${item.name}을(를) 가져오지 못했습니다. 창고를 정리하거나 확장한 뒤 다시 누르세요.` };
   s.fieldDrops = s.fieldDrops.filter(d => d.id !== id);
   if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1;
-  const stored = storeItem(s, id, '빛기둥 획득');
   log(s, `${GRADES[item.grade].name} ${item.name} 획득 · 창고 입고`, 'loot');
-  return { ok: true, message: stored ? `${item.name} 획득! 창고에 보관했습니다.` : '창고가 가득 차 자동 분해되었습니다.', item };
+  return { ok: true, message: `${item.name} 획득! 창고에 보관했습니다.`, item };
 }
 // Offline income is estimated from what heroes actually bring home while the game runs.
 export const OFFLINE = { efficiency: .6, capSeconds: 8 * 3600, minSeconds: 60, window: 120 };
@@ -435,7 +466,7 @@ export function tick(s, dt) {
   rollYield(s);
   s.effects.forEach(e => e.life -= dt); s.effects = s.effects.filter(e => e.life > 0);
   s.corpses.forEach(c => c.life -= dt); s.corpses = s.corpses.filter(c => c.life > 0);
-  for (const d of [...s.fieldDrops]) if (s.time >= d.expires) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); const item = s.items[d.id]; if (item) { if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1; storeItem(s, d.id, '5분 경과'); log(s, `${item.name}이(가) 창고에 자동 입고되었습니다.`, 'loot'); } }
+  for (const d of [...s.fieldDrops]) if (s.time >= d.expires) { const item = s.items[d.id]; if (!item) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); continue; } if (storeItem(s, d.id, '5분 경과')) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1; log(s, `${item.name}이(가) 창고에 자동 입고되었습니다.`, 'loot'); } else { d.expires = s.time + FIELD_DROP_TIME; log(s, `창고가 가득 차 ${item.name} 빛기둥이 5분 더 남아 있습니다. 창고를 정리하세요.`, 'danger'); } }
   for (const z of ZONES) {
     s.spawnCd[z.id] -= dt * s.spawnRates[z.id];
     if (s.raid && z.id === 3) { const boss = s.enemies.find(n => n.id === s.raid.bossId && n.hp > 0); if (!boss) endRaid(s, 'lost'); else if (s.time >= s.raid.ends) endRaid(s, 'timeout'); }
@@ -814,7 +845,7 @@ export function restore(raw) {
     if (!['zoneKills','spawnCd'].every(k => Array.isArray(s[k]) && s[k].length === 4 && s[k].every(num))) return null;
     if (!Array.isArray(s.logs) || s.logs.length > 60 || !s.logs.every(l => obj(l) && num(l.time) && typeof l.message === 'string' && ['info','system','loot','danger','level','boss'].includes(l.type))) return null;
     if (!Array.isArray(s.corpses) || !s.corpses.every(c => obj(c) && ['x','y','life','zone'].every(k=>num(c[k])) && ZONES[c.zone] && MONSTERS[c.type])) return null;
-    s.spawnRates ??= [1,1,1,1]; s.raid ??= null; s.bossKills ??= 0;
+    s.spawnRates ??= [1,1,1,1]; s.raid ??= null; s.bossKills ??= 0; s.speed = s.speed === 2 ? 2 : 1;
     if (!obj(s.difficulty)) s.difficulty = freshDifficulty();
     { const f = s.difficulty; if (![f.tier, f.stage, f.unlocked].every(Number.isInteger) || !DIFFICULTIES[f.tier] || !DIFFICULTIES[f.unlocked] || f.tier > f.unlocked || f.stage < 1 || f.stage > STAGES || !num(f.lockedUntil)) return null; }
     if (!obj(s.yield) || !obj(s.yield.rate) || !obj(s.yield.acc) || !num(s.yield.since) || !MATERIAL_KEYS.every(k => num(s.yield.rate[k]) && s.yield.rate[k] >= 0 && num(s.yield.acc[k]) && s.yield.acc[k] >= 0)) s.yield = freshYield(num(s.time) ? s.time : 0);

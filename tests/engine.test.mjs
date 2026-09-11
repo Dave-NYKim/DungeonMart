@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf, DIFFICULTIES } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK } from '../src/engine.js';
-import { BASES, effectiveGrid } from '../src/items.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK, storeItem, pickupFieldDrop, warehouseUsed, warehouseCapacity, resetRaidCooldown, raidResetCost, raidCooldownLeft } from '../src/engine.js';
+import { BASES, effectiveGrid, generateItem, GRADES } from '../src/items.js';
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
 import { MART, CAMPS, REGIONS, regionAt } from '../src/world.js';
@@ -137,4 +137,23 @@ test('difficulty ladder: stages climb, nightmare 1 beats normal 10, acts stay cl
   const loaded=restore(serialize(s));assert.deepEqual(loaded.difficulty,s.difficulty);assert.equal(loaded.enemies.find(x=>x.id===e.id).tier,1);
   const legacy=JSON.parse(serialize(s));delete legacy.difficulty;for(const x of legacy.enemies)delete x.tier;const l2=restore(JSON.stringify(legacy));assert.deepEqual(l2.difficulty,{tier:0,stage:1,unlocked:0,lockedUntil:0});assert.ok(l2.enemies.every(x=>x.tier===0));
   const bad=JSON.parse(serialize(s));bad.difficulty.tier=2;assert.equal(restore(JSON.stringify(bad)),null,'tier above unlocked is rejected');
+});
+test('set and unique items are never auto-salvaged: common gear makes room, otherwise the light pillar stays',()=>{
+  const s=createGame();const mk=(grade,ilvl=20)=>{const it=generateItem({ilvl,grade,kind:'elite',classId:'barbarian',findPct:0,pity:0,codex:s.codex});it.id=`i${s.nextId++}`;s.items[it.id]=it;return it;};
+  while(warehouseUsed(s)<warehouseCapacity(s)){const it=mk('normal',5);s.warehouse.push(it.id);}
+  const normalsBefore=s.warehouse.filter(id=>s.items[id].grade==='normal').length,setItem=mk('set');s.fieldDrops.push({id:setItem.id,zone:0,x:MART.x,y:MART.y,expires:s.time+300});
+  const r=pickupFieldDrop(s,setItem.id);assert.ok(r.ok,r.message);assert.ok(s.warehouse.includes(setItem.id),'set item lands in the warehouse');assert.ok(s.warehouse.filter(id=>s.items[id].grade==='normal').length<normalsBefore,'cheap gear was salvaged to make room');assert.ok(s.warehouse.every(id=>s.items[id]),'no dangling ids');
+  // a warehouse full of set items cannot make room: the pillar must survive instead of being destroyed
+  const t=createGame();t.warehouse=[];while(warehouseUsed(t)<warehouseCapacity(t)){const it=generateItem({ilvl:20,grade:'set',kind:'elite',classId:'barbarian',findPct:0,pity:0,codex:t.codex});it.id=`i${t.nextId++}`;t.items[it.id]=it;t.warehouse.push(it.id);}
+  const extra=generateItem({ilvl:20,grade:'unique',kind:'elite',classId:'barbarian',findPct:0,pity:0,codex:t.codex});extra.id='iX';t.items.iX=extra;t.fieldDrops.push({id:'iX',zone:0,x:MART.x,y:MART.y,expires:t.time+1});
+  assert.equal(pickupFieldDrop(t,'iX').ok,false);assert.ok(t.fieldDrops.some(d=>d.id==='iX'),'pillar remains on the map');
+  tick(t,.1);tick(t,1);assert.ok(t.fieldDrops.some(d=>d.id==='iX')&&t.items.iX,'expiry keeps a protected item instead of destroying it');
+});
+test('game speed persists in the save and is clamped to 1× or 2×',()=>{
+  const s=createGame();s.speed=2;assert.equal(restore(serialize(s)).speed,2);s.speed=4;assert.equal(restore(serialize(s)).speed,1);const legacy=JSON.parse(serialize(s));delete legacy.speed;assert.equal(restore(JSON.stringify(legacy)).speed,1);
+});
+test('boss cooldown can be reset for gold priced by the remaining minutes',()=>{
+  const s=createGame();s.treasury=5000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}assert.ok(summonBoss(s).ok);const boss=s.enemies.find(e=>e.boss);boss.hp=1;boss.contributors[s.heroes[0].id]=1;for(let i=0;i<200&&s.raid;i++)tick(s,.1);
+  const left=raidCooldownLeft(s);assert.ok(left>0);assert.equal(raidResetCost(s),Math.ceil(left/60)*100);
+  s.treasury=10;assert.equal(resetRaidCooldown(s).ok,false);s.treasury=5000;const cost=raidResetCost(s),before=s.treasury;assert.ok(resetRaidCooldown(s).ok);assert.equal(s.treasury,before-cost);assert.equal(raidCooldownLeft(s),0);assert.equal(resetRaidCooldown(s).ok,false,'nothing to reset');
 });

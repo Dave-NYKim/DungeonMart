@@ -23,11 +23,11 @@
         <button class="save-button" data-action="save"><span id="save-icon"></span><span id="save-status">자동 저장</span></button>
       </header>
               <canvas id="world" tabindex="0" aria-label="핀치로 확대·축소하고 끌어서 탐색하는 월드 지도"></canvas>
-              <div class="time-controls" id="time-controls"></div><div class="map-topline"><span><i class="status-dot"></i> <b id="map-location">던전 마트</b></span><span id="day-label">DAY 01</span></div>
-              <div class="map-shortcuts" aria-label="지도 바로가기"><div class="shortcut-group" id="zone-shortcuts"></div><div class="shortcut-group right"><button data-action="camera-fit">전체 지도</button><button data-action="camera-hero" id="follow-button">헌터 추적</button><button data-action="town-mode" data-mode="edit">마을 편집</button><button data-action="summon-boss" id="summon-boss" title="모든 용사가 ACT IV로 출격해 보스와 싸웁니다">보스 소환</button></div></div>
+              <div class="time-controls" id="time-controls"></div><div class="map-topline"><span id="day-label">DAY 01</span></div>
               <div id="boss-hud" class="boss-hud" hidden aria-live="polite"></div>
+              <div class="boss-corner"><button data-action="summon-boss" id="summon-boss" class="danger" title="보스 소환" aria-label="보스 소환"></button></div>
               <div class="map-zoom" aria-label="지도 확대 축소"><button data-action="camera-out" aria-label="지도 축소">−</button><output id="zoom-label" aria-live="polite">100%</output><button data-action="camera-in" aria-label="지도 확대">+</button><button data-action="expand-map" id="expand-map" aria-label="지도 화면 넓히기">⛶</button></div>
-              <div class="minimap-wrap"><span>WORLD MAP</span><canvas id="minimap" width="180" height="140" aria-label="전체 월드 미니맵. 눌러서 이동"></canvas></div>
+              <div class="map-corner" id="map-corner"><span class="map-location-chip"><i class="status-dot"></i> <b id="map-location">던전 마트</b></span><div class="map-shortcuts" aria-label="지도 바로가기"><div class="shortcut-group" id="zone-shortcuts"></div></div><div class="minimap-wrap"><span>WORLD MAP</span><canvas id="minimap" width="180" height="140" aria-label="전체 월드 미니맵. 눌러서 이동"></canvas></div></div>
               <div class="map-hint">핀치·휠: 확대/축소 · 끌기: 이동 · 몬스터 누르기: 정보</div>
               <div id="drop-badges" class="drop-badges" aria-label="획득 대기 중인 전설 드롭"></div>
               <div id="map-tooltip" class="map-tooltip" hidden></div>
@@ -35,7 +35,7 @@
           </div>
         </section>
         <section class="management-panel" id="management-panel" hidden aria-label="관리 패널">
-          <div class="drawer-heading"><div><span class="eyebrow" id="page-eyebrow">MART MANAGEMENT</span><h2 id="page-title">용사 관리</h2><p id="page-description"></p></div><div class="drawer-actions"><button class="small-button" data-action="profile" id="selected-hero-button">선택 용사</button><button class="small-button" data-action="view" data-view="world" aria-label="관리 패널 접기">접기 ▾</button></div></div>
+          <div class="drawer-heading"><div><span class="eyebrow" id="page-eyebrow">MART MANAGEMENT</span><h2 id="page-title">용사 관리</h2><p id="page-description"></p></div><div class="drawer-actions"><button class="small-button" data-action="view" data-view="world" aria-label="관리 패널 접기">접기 ▾</button></div></div>
         <aside class="roster-panel view" id="heroes-view" hidden>
           <div class="panel-heading"><div><span class="eyebrow">YOUR ADVENTURERS</span><h2>용사 관리 <span id="hero-count">5 / 20</span></h2></div><button class="icon-button" data-action="recruit" title="용사 영입" aria-label="용사 영입">+</button></div>
           <div class="roster-summary" id="roster-summary"></div>

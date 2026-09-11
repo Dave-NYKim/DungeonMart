@@ -1,7 +1,7 @@
 import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, DIFFICULTIES, STAGES, stageMult, classOf, skillsOf, titleOf } from './data.js';
 import { GRADES, gradeColor, displayName, itemBase, TIER_NAMES } from './items.js';
 import { installGearUI, itemLines, iconFor } from './gear-ui.js';
-import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, setDifficulty, zoneStats, DIFFICULTY_LOCK, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
+import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, resetRaidCooldown, raidResetCost, setDifficulty, zoneStats, DIFFICULTY_LOCK, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
 import { WorldRenderer, portrait, monsterPortrait, drawHero } from './render.js';
 import { pixelIcon } from './pixel-icons.js';
 import { MART, ARRIVAL, REGIONS, POIS, poiAt, regionAt, MOVABLE_IDS, DECORATIONS, TOWN_BOUNDS, snapTown, placementError, freshTown, applyTownLayout } from './world.js';
@@ -15,7 +15,7 @@ try { const raw = localStorage.getItem(SAVE_KEY); state = raw && restore(raw); s
 state ||= createGame();
 applyTownLayout(state.town);
 let offlineReport = state.savedAt ? settleOffline(state, state.savedAt) : null, hiddenAt = null;
-let selected = state.heroes[0].id, selectedZone = 0, view = 'world', speed = 1, paused = false, last = performance.now(), accumulator = 0, uiTimer = 0, saveTimer = 0, signature = '', toastTimer;
+let selected = state.heroes[0].id, selectedZone = 0, view = 'world', speed = [1,2].includes(state?.speed) ? state.speed : 1, paused = false, last = performance.now(), accumulator = 0, uiTimer = 0, saveTimer = 0, signature = '', toastTimer;
 let profileTab='overview', previewSkillId=null, previewStarted=performance.now(), previewPaused=false, previewElapsed=0, previewSlow=false;
 let pointerHeld=false;
 document.addEventListener('pointerdown',()=>pointerHeld=true);
@@ -98,7 +98,7 @@ function updateDetail() {
   $('detail-health').textContent=`${Math.ceil(h.hp)} / ${Math.ceil(st.hp)}`; $('detail-status').textContent=statusOf(h);$('hero-gold').textContent=`${fmt(h.gold)} G`;
   for(const el of document.querySelectorAll('[data-cooldown]')) el.style.height=`${Math.min(100,(h.cooldowns[el.dataset.cooldown]||0)/Number(el.dataset.cd)*100)}%`;
 }
-function zoneChip(h){const st=statsOf(h,state);return `<button class="zone-hero ${h.id===selected?'selected':''}" data-action="select" data-id="${h.id}" data-hero="${h.id}" style="--hero-color:${classOf(h).color}" title="${h.name} · Lv.${h.level} · ${statusOf(h)}" aria-label="${h.name}, 레벨 ${h.level}, ${statusOf(h)}"><canvas data-portrait="${h.id}" width="48" height="64" aria-hidden="true"></canvas><small style="color:${HERO_GRADES[h.grade].color}">${h.level}</small><i class="status-dot ${h.state}"></i><span class="chip-hp"><span style="width:${Math.max(0,h.hp/st.hp*100)}%"></span></span></button>`;}
+function zoneChip(h){const st=statsOf(h,state);return `<button class="zone-hero" data-hero="${h.id}" style="--hero-color:${classOf(h).color}" title="${h.name} · Lv.${h.level} · ${statusOf(h)}" aria-label="${h.name}, 레벨 ${h.level}, ${statusOf(h)}"><canvas data-portrait="${h.id}" width="48" height="64" aria-hidden="true"></canvas><small style="color:${HERO_GRADES[h.grade].color}">${h.level}</small><i class="status-dot ${h.state}"></i><span class="chip-hp"><span style="width:${Math.max(0,h.hp/st.hp*100)}%"></span></span></button>`;}
 function renderActs() {
   const columns=[{id:-1,name:'마을 대기',sub:'사냥을 쉬고 마트에서 대기',heroes:state.heroes.filter(h=>h.standby),open:true,color:'#cfc9a0'},...ZONES.map(z=>({id:z.id,zone:z,name:`ACT ${z.act} · ${z.name}`,heroes:state.heroes.filter(h=>!h.standby&&h.zone===z.id),open:availableZone(state,z.id),color:z.color}))];
   const html=`${difficultyBarHTML()}<div class="zone-board" id="zone-board">${columns.map(col=>`<section class="zone-column ${col.id===-1?'town':''} ${col.open?'':'locked'} ${col.zone&&selectedZone===col.id?'active':''}" data-drop-zone="${col.id}" style="--act-color:${col.color}" aria-label="${col.name}"><header>${col.zone?`<button class="zone-title" data-action="zone" data-zone="${col.id}" aria-pressed="${selectedZone===col.id}">${col.name}</button>`:`<strong class="zone-title">${col.name}</strong>`}<small>${col.open?`${col.heroes.length}명${col.zone?` · Lv.${col.zone.level}+`:''}`:`Lv.${col.zone.level} 해금 ${icon('lock')}`}</small></header><div class="zone-heroes">${col.heroes.map(zoneChip).join('')||`<span class="zone-empty">${col.open?'여기에 놓기':'잠김'}</span>`}</div><footer>${col.zone?`<div class="spawn-control"><span>젠</span><div class="spawn-options" role="group" aria-label="ACT ${col.zone.act} 몬스터 재생성 속도">${[1,2,3,4,5].map(v=>`<button class="small-button ${state.spawnRates[col.id]===v?'active':''}" data-action="spawn-rate" data-zone="${col.id}" data-value="${v}" aria-pressed="${state.spawnRates[col.id]===v}">${v}×</button>`).join('')}</div></div><small>${MATERIALS[col.zone.material].name} · ${(1.8/state.spawnRates[col.id]).toFixed(2)}초 간격</small>`:`<small>${col.sub}</small>`}</footer></section>`).join('')}</div>`;
@@ -110,7 +110,7 @@ const gearCtx={state:()=>state,hero:()=>selectedHero(),icon,fmt,result:r=>result
 const gearUI=installGearUI($('gear-view'),gearCtx,'hero'),workshopUI=installGearUI($('workshop-view'),gearCtx,'workshop');
 // 마을 메뉴의 창고 화면: 리스너를 유지하려고 고정 호스트 요소를 town-view 안에 붙였다 뗀다.
 const townGearHost=document.createElement('div');townGearHost.id='town-gear';
-const townUI=installGearUI(townGearHost,{...gearCtx,townHeader:()=>`<div class="town-head"><div><h3>마을 창고</h3><p>용사가 귀환하면 전리품이 이곳에 들어옵니다. 장비를 누르면 상세가 보이고, <b>배치</b>로 ${selectedHero().name}에게 장착합니다.</p></div><button class="small-button" data-action="town-mode" data-mode="edit">${icon('shop')} 마을 편집</button></div>`},'town');
+const townUI=installGearUI(townGearHost,{...gearCtx,hero:()=>null,townHeader:()=>`<div class="town-head"><div><h3>마을 창고</h3><p>용사가 귀환하면 전리품이 이곳에 들어옵니다. 장비를 누르면 상세가 보입니다. 장착은 <b>용사</b> 화면에서 용사를 고른 뒤 장비 탭에서 합니다.</p></div><button class="small-button" data-action="town-mode" data-mode="edit">${icon('shop')} 마을 편집</button></div>`},'town');
 function renderWorkshop() { workshopUI.render(); }
 function renderGear() { gearUI.render(); }
 let treeNode=null,viewTier=null;
@@ -180,7 +180,7 @@ function renderBestiary(){ $('bestiary-view').innerHTML=ZONES.map(z=>`<article c
 function renderUI(force=false){
   if(!force&&(pointerHeld||document.activeElement?.tagName==='SELECT'))return;
   renderResources();renderRoster();renderActs();updateDetail();
-  $('selected-hero-button').textContent = `${selectedHero().name} · 정보 ↗`;
+  
   $('day-label').textContent=`DAY ${String(state.day).padStart(2,'0')} · ${DIFFICULTIES[state.difficulty.tier].name} ${state.difficulty.stage}단계`;$('playtime').textContent=clock(state.time);$('kill-counter').textContent=`누적 처치 ${fmt(state.kills)}`;
   $('activity-log').innerHTML=state.logs.slice(0,3).map(l=>`<div class="log-row ${l.type}"><time>${clock(l.time)}</time><span class="log-message">${l.message}</span></div>`).join('');
   const h=selectedHero();const nextSig=JSON.stringify([selected,view,h.level,h.path,h.placed,h.costume,h.skillRanks,h.skillPoints,state.itemRev,state.warehouse.length,state.fieldDrops.length,Object.values(state.drawer.gems).join(),Object.values(state.drawer.runes).join(),state.upgrades,state.materials]);
@@ -188,13 +188,13 @@ function renderUI(force=false){
   if(force||signature!==nextSig){signature=nextSig;renderNav();renderDetail();if($('hero-modal').open)renderProfileChrome();if(view==='workshop')renderWorkshop();if($('hero-modal').open&&profileTab==='equipment')renderGear();if(view==='skills'||$('hero-modal').open&&profileTab==='skills')renderSkills();if(view==='bestiary')renderBestiary();if(view==='town')renderTown();}
   renderRaid();
   $('objective').textContent=!state.crafted?'첫 영업 목표: 장비 한 개 제작하기':!state.sales?'다음 목표: 용사의 장비창에 장비 배치하기':!state.heroes.some(h=>h.level>=8)?'다음 목표: 용사 Lv.8 달성 · ACT II 해금':'오늘도 던전 한가운데, 정상 영업.';
-  const timeControlsHTML=`<button data-action="pause" class="${paused?'active':''}" aria-label="${paused?'게임 재개':'게임 일시정지'}" title="${paused?'재개':'일시정지'}">${icon(paused?'play':'pause')}</button>${[1,2,4].map(n=>`<button data-action="speed" data-value="${n}" class="${speed===n&&!paused?'active':''}" aria-label="${n}배속">${n}×</button>`).join('')}`;
+  const timeControlsHTML=`${[1,2].map(n=>`<button data-action="speed" data-value="${n}" class="${speed===n?'active':''}" aria-label="${n}배속" aria-pressed="${speed===n}">${n}×</button>`).join('')}`;
   if ($('time-controls')._markup !== timeControlsHTML) { $('time-controls').innerHTML = timeControlsHTML; $('time-controls')._markup = timeControlsHTML; }
 }
 function renderRaid(){
   const b=state.raid&&state.enemies.find(e=>e.id===state.raid.bossId),hud=$('boss-hud'),button=$('summon-boss');
-  const cd=raidCooldownLeft(state);button.disabled=!!state.raid||cd>0;button.classList.toggle('active',!!state.raid);button.classList.toggle('cooldown',!state.raid&&cd>0);button.textContent=state.raid?'보스 전투 중':cd>0?`보스 소환 · ${clock(cd)} 후`:`보스 소환 · ${RAID_COST} G`;
-  const zonesHTML=[`<button class="zone-shortcut" data-action="camera-home" title="마을로 이동 (H)">${icon('shop')}<small>마을</small></button>`,...ZONES.map(z=>`<button class="zone-shortcut ${availableZone(state,z.id)?'':'locked'} ${selectedZone===z.id?'active':''}" data-action="camera-zone" data-zone="${z.id}" title="${z.name}${availableZone(state,z.id)?'':' · Lv.'+z.level+' 해금'}">${icon(availableZone(state,z.id)?'map':'lock')}<small>ACT ${z.act}</small></button>`)].join('');
+  const cd=raidCooldownLeft(state);button.disabled=!!state.raid;button.classList.toggle('active',!!state.raid);button.classList.toggle('cooldown',!state.raid&&cd>0);button.title=state.raid?'보스 전투 중':cd>0?`봉인문 닫힘 · ${clock(cd)} 남음 · 눌러서 ${fmt(raidResetCost(state))} G로 초기화`:`보스 소환 · ${RAID_COST} G`;button.setAttribute('aria-label',button.title);const label=state.raid?'전투 중':cd>0?clock(cd):'보스 소환';if(button._label!==label){button._label=label;button.innerHTML=icon('skull')+`<span>${label}</span>`;}
+  const zonesHTML=[`<button class="zone-shortcut" data-action="camera-home" title="마을로 이동 (H)" aria-label="마을로 이동">${icon('shop')}</button>`,...ZONES.map(z=>`<button class="zone-shortcut ${availableZone(state,z.id)?'':'locked'} ${selectedZone===z.id?'active':''}" data-action="camera-zone" data-zone="${z.id}" title="ACT ${z.act} · ${z.name}${availableZone(state,z.id)?'':' · Lv.'+z.level+' 해금'}" aria-label="ACT ${z.act} ${z.name}">${availableZone(state,z.id)?`<b>${z.act}</b>`:icon('lock')}</button>`)].join('');
   const zs=$('zone-shortcuts');if(zs&&zs._markup!==zonesHTML){zs._markup=zonesHTML;zs.innerHTML=zonesHTML;}
   if(!b){hud.hidden=true;hud._markup='';return;}
   const m=MONSTERS[b.type],left=Math.max(0,state.raid.ends-state.time),fighters=state.heroes.filter(h=>h.state==='hunt'&&Math.hypot(h.x-b.x,h.y-b.y)<320).length;
@@ -232,8 +232,7 @@ document.addEventListener('click',event=>{
   if(a==='spawn-rate')result(setSpawnRate(state,Number(b.dataset.zone),Number(b.dataset.value)));
   if(a==='assign')result(assignZone(state,h,Number(b.dataset.zone)));
   if(a==='save')save(true);
-  if(a==='speed'){speed=Number(b.dataset.value);paused=false;renderUI();}
-  if(a==='pause'){paused=!paused;renderUI();}
+  if(a==='speed'){speed=Number(b.dataset.value)===2?2:1;state.speed=speed;renderUI();save();}
   if(a==='focus-drop'){const d=state.fieldDrops.find(d=>d.id===b.dataset.id);if(d){$('hero-modal').close();setView('world');renderer.focus(d.x,d.y-20,1.5);updateCameraChrome();}}
   if(a==='pickup'){const r=pickupFieldDrop(state,b.dataset.id);result(r);if(r.ok)showPickup(r.item);}
   if(a==='facility')result(upgradeMart(state,b.dataset.id));
@@ -247,6 +246,8 @@ document.addEventListener('click',event=>{
   if(a==='confirm-promote'){const r=result(promote(state,state.heroes.find(h=>h.id===b.dataset.hero),b.dataset.id));if(r.ok)$('modal').close();}
   if(a==='difficulty-tier'){viewTier=Number(b.dataset.tier);renderActs();}
   if(a==='difficulty-stage'){const r=result(setDifficulty(state,Number(b.dataset.tier),Number(b.dataset.stage)));if(r.ok)viewTier=null;}
+  if(a==='summon-boss'&&raidCooldownLeft(state)>0&&!state.raid){const left=raidCooldownLeft(state),cost=raidResetCost(state);openModal('봉인문이 닫혀 있습니다',`<p class="modal-description">보스를 다시 소환하려면 <b>${clock(left)}</b> 더 기다려야 합니다.</p><p class="modal-description">지금 바로 열려면 남은 ${Math.ceil(left/60)}분 × 100 G = <b>${fmt(cost)} G</b>가 듭니다. 현재 운영금 ${fmt(state.treasury)} G</p>`,`<button class="small-button" data-action="close">기다리기</button><button class="primary-button" data-action="reset-raid" ${state.treasury<cost?'disabled':''}>${fmt(cost)} G로 초기화</button>`);return;}
+  if(a==='reset-raid'){const r=result(resetRaidCooldown(state));if(r.ok){$('modal').close();renderRaid();}}
   if(a==='summon-boss')openModal('보스 소환',`<p class="modal-description">운영금 ${RAID_COST} G를 써서 ACT IV 봉인문 앞에 재의 군주를 소환합니다. 모든 용사가 출격하며, 4분 안에 처치하면 현상금 2,000 G와 영혼 결정 3개를 받습니다.</p><p class="modal-description">현재 운영금 ${fmt(state.treasury)} G</p>`,`<button class="small-button" data-action="close">취소</button><button class="primary-button" data-action="confirm-summon" ${state.raid||state.treasury<RAID_COST?'disabled':''}>소환 · ${RAID_COST} G</button>`);
   if(a==='confirm-summon'){const r=result(summonBoss(state));if(r.ok){$('modal').close();setView('world');renderer.focus(r.boss.x,r.boss.y-30,1);updateCameraChrome();}}
   if(a==='camera-home'){renderer.home();updateCameraChrome();}
@@ -262,7 +263,7 @@ document.addEventListener('click',event=>{
   if(a==='export'){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='dungeon-mart-save.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('저장 파일을 내보냈습니다.');}
   if(a==='import'){const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=async()=>{const file=input.files[0];if(!file)return;if(file.size>5_000_000){toast('저장 파일이 너무 큽니다.',true);return;}try{const next=restore(await file.text());if(!next){toast('올바른 Dungeon Mart 저장 파일이 아닙니다.',true);return;}openModal('진행 상황 불러오기','<p class="modal-description">현재 진행 상황을 선택한 파일로 교체합니다.</p>','<button class="small-button" data-action="close">취소</button><button class="primary-button" id="confirm-import">불러오기</button>');$('confirm-import').onclick=()=>{state=next;applyTownLayout(state.town);townUndo=[];selected=state.heroes[0].id;saveLoadError=false;signature='';renderer.home();save();renderUI(true);$('modal').close();toast('진행 상황을 불러왔습니다.');};}catch{toast('저장 파일을 읽지 못했습니다.',true);}};input.click();}
   if(a==='new-game')openModal('새 영업 시작','<p class="modal-description">현재 용사, 장비, 진행 상황이 모두 초기화됩니다. 보관하려면 먼저 저장 파일을 내보내세요.</p>','<button class="small-button" data-action="help">돌아가기</button><button class="primary-button" data-action="confirm-new">초기화하고 시작</button>');
-  if(a==='confirm-new'){state=createGame();townUndo=[];selected=state.heroes[0].id;selectedZone=0;saveLoadError=false;paused=false;speed=1;signature='';setView('world');renderer.home();updateCameraChrome();save();$('modal').close();toast('새로운 영업을 시작합니다.');}
+  if(a==='confirm-new'){state=createGame();townUndo=[];selected=state.heroes[0].id;selectedZone=0;saveLoadError=false;paused=false;speed=1;state.speed=1;signature='';setView('world');renderer.home();updateCameraChrome();save();$('modal').close();toast('새로운 영업을 시작합니다.');}
 });
 let zoneDrag=null,suppressSelect=false;
 const dropColumnAt=(x,y)=>document.elementFromPoint(x,y)?.closest('[data-drop-zone]')||null;
@@ -287,11 +288,11 @@ document.addEventListener('pointerup',e=>endZoneDrag(e,true));document.addEventL
 $('modal').addEventListener('click',event=>{if(event.target===$('modal')){const r=$('modal').getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)$('modal').close();}});
 $('hero-modal').addEventListener('click',event=>{if(event.target===$('hero-modal')){const r=$('hero-modal').getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)$('hero-modal').close();}});
 $('hero-modal').addEventListener('close',returnProfileViews);
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('modal').open&&!$('hero-modal').open&&view!=='world')setView('world');});
+document.addEventListener('keydown',event=>{if(event.key==='p'&&event.altKey){paused=!paused;toast(paused?'디버그: 일시정지':'디버그: 재개');}if(event.key==='Escape'&&!$('modal').open&&!$('hero-modal').open&&view!=='world')setView('world');});
 const renderer=new WorldRenderer($('world'),$('minimap'));
 function updateCameraChrome(){
   const zoom=renderer.camera.zoom;$('zoom-label').textContent=`${Math.round(zoom*100)}%`;$('map-location').textContent=renderer.location;
-  $('follow-button').classList.toggle('active',!!renderer.followId);$('follow-button').textContent=renderer.followId?'추적 중':'헌터 추적';
+  
   const expanded=document.body.classList.contains('map-expanded');$('expand-map').setAttribute('aria-pressed',String(expanded));
   $('world').dataset.followId=renderer.followId||'';
   $('world').dataset.zoom=String(zoom);$('world').dataset.cameraX=String(renderer.camera.x);$('world').dataset.cameraY=String(renderer.camera.y);
@@ -321,7 +322,7 @@ function townPick(point,event){
 }
 installMapInput($('world'),renderer,{
   change:updateCameraChrome,
-  pick:event=>{if(renderer.editing){townPick(renderer.point(event),event);return;}const p=renderer.point(event);const drop=dropAt(p);if(drop){const r=pickupFieldDrop(state,drop.id);result(r);if(r.ok)showPickup(r.item);return;}const hero=state.heroes.find(h=>Math.abs(h.x-p.x)<16&&p.y<h.y+8&&p.y>h.y-40);if(hero){selectHero(hero.id);return;}const enemy=enemyAt(p);if(enemy){showTip(enemyTip(enemy),event,true);return;}const object=poiAt(p.x,p.y);if(object){showPoi(object);return;}hideTip();const z=regionAt(p.x,p.y);if(z?.zone!==undefined){selectedZone=z.zone;renderActs();}},
+  pick:event=>{if(renderer.editing){townPick(renderer.point(event),event);return;}const p=renderer.point(event);const drop=dropAt(p);if(drop){const r=pickupFieldDrop(state,drop.id);result(r);if(r.ok)showPickup(r.item);return;}const hero=state.heroes.find(h=>Math.abs(h.x-p.x)<16&&p.y<h.y+8&&p.y>h.y-40);const enemy=enemyAt(p);if(enemy){showTip(enemyTip(enemy),event,true);return;}const object=poiAt(p.x,p.y);if(object){showPoi(object);return;}hideTip();const z=regionAt(p.x,p.y);if(z?.zone!==undefined){selectedZone=z.zone;renderActs();}},
   hover:event=>{if(renderer.editing){if(event)townGhost(renderer.point(event));return;}renderer.hovered=null;if(!event){if(!tipSticky)hideTip();return;}const p=renderer.point(event),drop=dropAt(p),enemy=drop?null:enemyAt(p),object=drop?null:poiAt(p.x,p.y);if(!drop&&!enemy&&!object){if(!tipSticky)hideTip();return;}
     if(drop){const item=state.items[drop.id];showTip(`<span style="color:${gradeColor(item)}">${GRADES[item.grade].name} · ${displayName(item)}</span><small>눌러서 획득 · ${Math.ceil(Math.max(0,drop.expires-state.time))}초 후 자동 입고</small>`,event);}
     else if(enemy)showTip(enemyTip(enemy),event);
@@ -334,7 +335,7 @@ $('minimap').addEventListener('pointerdown',e=>{miniDragging=true;$('minimap').s
 $('minimap').addEventListener('pointermove',e=>{if(miniDragging)moveMini(e);});
 for(const name of['pointerup','pointercancel','lostpointercapture'])$('minimap').addEventListener(name,()=>miniDragging=false);
 $('world').addEventListener('keydown',e=>{const k=e.key;if(['+','=','-','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','h','H','0'].includes(k))e.preventDefault();if(k==='+'||k==='=')renderer.zoom(renderer.camera.zoom*1.3);if(k==='-')renderer.zoom(renderer.camera.zoom/1.3);if(k==='0')renderer.overview();if(k.toLowerCase()==='h')renderer.home();if(k==='ArrowLeft')renderer.pan(100,0);if(k==='ArrowRight')renderer.pan(-100,0);if(k==='ArrowUp')renderer.pan(0,100);if(k==='ArrowDown')renderer.pan(0,-100);updateCameraChrome();});
-$('save-icon').innerHTML=icon('save');
+$('save-icon').innerHTML=icon('save');$('summon-boss').innerHTML=icon('skull');
 window.addEventListener('pagehide',()=>save());
 document.addEventListener('visibilitychange',()=>{last=performance.now();accumulator=0;if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){const r=settleOffline(state,hiddenAt);hiddenAt=null;if(r){signature='';renderUI(true);save();showOffline(r);}}});
 function frame(now){const elapsed=Math.min((now-last)/1000,.15);last=now;if(!paused&&!document.hidden&&!renderer.editing){accumulator+=elapsed*speed;while(accumulator>=.1){tick(state,.1);accumulator-=.1;}}renderer.draw(state,selected,selectedZone);drawPreview(now);updateCameraChrome();uiTimer+=elapsed;saveTimer+=elapsed;if(uiTimer>.65){renderUI();uiTimer=0;}if(saveTimer>10){save();saveTimer=0;}requestAnimationFrame(frame);}
