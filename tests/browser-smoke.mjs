@@ -25,7 +25,7 @@ try{
  await send('Runtime.enable');await send('Page.enable');await send('Emulation.setDeviceMetricsOverride',{width:1512,height:982,deviceScaleFactor:1,mobile:false});
  await send('Page.navigate',{url:'http://127.0.0.1:4173'});await until(`document.querySelector('#hero-portrait')`);
  await tap('[data-action="help"]');await tap('[data-action="new-game"]');await tap('[data-action="confirm-new"]');await sleep(400);await tap('[data-action="pause"]');
- assert.equal((await saved()).treasury,10000);assert.ok(await evaluate(`document.querySelector('.map-frame #resources')!==null`));
+ assert.equal((await saved()).treasury,0);assert.ok(await evaluate(`document.querySelector('.map-frame #resources')!==null`));
  await tap('[data-action="camera-fit"]');await screenshot('00-overview');assert.ok((await camera()).zoom<.5);
  for(let zone=0;zone<4;zone++){
   await tap('#nav [data-view="expedition"]');await tap(`[data-action="zone"][data-zone="${zone}"]`);await tap('#nav [data-view="world"]');await screenshot(`act-${zone+1}`);
@@ -36,7 +36,10 @@ try{
  await tap('[data-action="camera-home"]');await worldTap(1456,970);assert.ok(await evaluate(`document.querySelector('#hero-modal').open && !document.querySelector('#hero-modal #workshop-view').hidden`),'forge opens the equipment tab of the hero popup');await tap('[data-action="close-profile"]');
  await tap('#nav [data-view="heroes"]');assert.equal(await evaluate(`getComputedStyle(document.querySelector('#hero-list')).gridTemplateColumns.split(' ').length`),3,'roster shows three heroes per row');assert.equal(await evaluate(`document.querySelectorAll('.hero-avatar small').length`),0,'promotion tier badge removed from roster');await tap('.hero-card');assert.ok(await evaluate(`document.querySelector('#hero-modal').open`));
  const before=await evaluate(`document.querySelector('#hero-portrait').toDataURL()`);
- await tap('#profile-tabs [data-tab="equipment"]');await tap('[data-action="craft"]');await tap('[data-action="equip"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open && document.querySelector('#hero-modal #workshop-view')!==null`),'equipment stays inside profile');
+ await tap('#profile-tabs [data-tab="equipment"]');assert.ok(await evaluate(`document.querySelectorAll('#hero-modal .grid-zone').length===3`),'three grid zones');
+ await evaluate(`(()=>{const c=document.querySelector('#craft-base');const opt=[...c.options].find(o=>o.textContent.includes('✓'));if(opt){c.value=opt.value;c.dispatchEvent(new Event('change',{bubbles:true}));}return true;})()`);await sleep(120);
+ await tap('[data-gear="craft"]');await tap('.wh-item [data-gear="auto"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open && document.querySelectorAll('#hero-modal .grid-item').length>=1`),'crafted item placed into the grid inside profile');
+ assert.ok(await evaluate(`document.querySelector('#hero-modal .grid-item').getBoundingClientRect().width>0`),'grid item rendered');
  assert.notEqual(await evaluate(`document.querySelector('#hero-portrait').toDataURL()`),before);
  await tap('#profile-tabs [data-tab="overview"]');await tap('[data-action="costume"][data-value="crimson"]');await screenshot('profile-overview');
  await tap('#profile-tabs [data-tab="skills"]');await tap('[data-action="tree-node"][data-id="crusher"]');await tap('[data-action="preview"][data-id="crusher-1"]');
@@ -60,6 +63,8 @@ try{
  await tap('[data-action="town-undo"]');assert.equal((await saved()).town.decorations.length,1);
  const townSaved=structuredClone((await saved()).town);await send('Page.reload');await until(`document.querySelector('#hero-portrait')`);await tap('[data-action="save"]');assert.deepEqual((await saved()).town,townSaved,'edited town survives reload');
  await tap('#nav [data-view="town"]');await tap('[data-action="town-reset"]');assert.deepEqual((await saved()).town,townBefore);await tap('#nav [data-view="world"]');
+ // 새 게임은 운영금 0 G라 영입 전에 저장에 운영금을 넣어 준다.
+ const funded=await evaluate(`(()=>{const s=JSON.parse(localStorage.getItem('dungeon-mart-save-v1'));s.treasury=1000;return JSON.stringify(s);})()`);await loadFixture(funded);await tap('[data-action="pause"]');
  await tap('#nav [data-view="heroes"]');await tap('[data-action="recruit"]');await tap('[data-action="hire"]');assert.equal((await saved()).heroes.at(-1).arrivalStage,-1);await tap('[data-action="profile-follow"]');await screenshot('harbor-arrival');
  await tap('#nav [data-view="expedition"]');await tap('[data-action="zone"][data-zone="2"]');
  // Drag a hero chip between board columns with real pointer movement.

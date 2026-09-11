@@ -65,7 +65,7 @@ export function makeHero(s, classId, grade = 0) {
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 10000, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -780,8 +780,8 @@ export function restore(raw) {
       for(const e of s.enemies){const p=nearestWalkable({x:REGIONS[e.zone].x+clamp(e.x-old[e.zone].x,-280,280),y:REGIONS[e.zone].y+clamp(e.y-old[e.zone].y,-240,240)});e.x=p.x;e.y=p.y;}
       s.corpses=[];s.version=VERSION;s.worldRevision=WORLD.revision;log(s,'새 대륙 도착 · 마을과 사냥터 배치를 갱신했습니다.','system');
     }
-    // One-time operating fund correction, preserving all other progression.
-    if (s.operatingGrantApplied !== true) { s.treasury = 10000; s.operatingGrantApplied = true; }
+    // 예전 테스트 빌드의 일회성 운영금 보정은 종료. 기존 잔액은 그대로 두고 플래그만 기록한다.
+    if (s.operatingGrantApplied !== true) s.operatingGrantApplied = true;
     s.effects = [];
     for (const h of s.heroes) gearBonus(h, s);
     return s;

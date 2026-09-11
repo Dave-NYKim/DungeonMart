@@ -88,7 +88,7 @@ test('town standby parks a hero at the mart until reassigned and survives saves'
   for(let i=0;i<50;i++)tick(s,.1);assert.notEqual(h.state,'recover');
 });
 test('boss summon pulls every hero into ACT IV, rewards the party on the kill and restores assignments',()=>{
-  const s=createGame();s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);
+  const s=createGame();s.treasury=10000;s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);
   for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
   const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);r.boss.hp=r.boss.maxHp=5e6;assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.ok(regionAt(r.boss.x,r.boss.y)?.zone===3);
   assert.equal(summonBoss(s).ok,false);

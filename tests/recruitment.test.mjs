@@ -24,10 +24,10 @@ test('grades and rates persist, legacy fields default safely and invalid setting
  s.spawnRates=[1,1,0,5];assert.equal(restore(serialize(s)),null);s.spawnRates=[1,1,1,1];s.heroes[0].grade=8;assert.equal(restore(serialize(s)),null);
 });
 
-test('test build starts with ten thousand mart gold',()=>{assert.equal(createGame().treasury,10000);});
+test('a new game starts with zero mart gold',()=>{assert.equal(createGame().treasury,0);});
 
-test('existing saves receive the operating fund correction once without losing progression',()=>{
+test('existing saves keep their treasury balance without any operating fund grant',()=>{
  const s=createGame();delete s.operatingGrantApplied;s.treasury=80;s.materials={iron:666,crystal:132,soul:0};
- const next=restore(serialize(s));assert.equal(next.treasury,10000);assert.deepEqual(next.materials,s.materials);assert.deepEqual(next.heroes,s.heroes);
- next.treasury-=120;assert.equal(restore(serialize(next)).treasury,9880);
+ const next=restore(serialize(s));assert.equal(next.treasury,80);assert.equal(next.operatingGrantApplied,true);assert.deepEqual(next.materials,s.materials);assert.deepEqual(JSON.parse(serialize(next)).heroes,JSON.parse(serialize(s)).heroes);
+ next.treasury+=120;assert.equal(restore(serialize(next)).treasury,200);
 });

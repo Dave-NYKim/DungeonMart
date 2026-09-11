@@ -18,7 +18,7 @@ test('all acts have traversable routes from the mart across the connected contin
  }
 });
 test('new recruits sail into port, register, and depart from the mart',()=>{
- const s=createGame(),h=recruit(s,'amazon').hero;assert.equal(h.state,'arrive');assert.equal(h.x,ARRIVAL.berth.x-160);assert.equal(h.arrivalStage,-1);assert.equal(h.y,ARRIVAL.y);
+ const s=createGame();s.treasury=1000;const h=recruit(s,'amazon').hero;assert.equal(h.state,'arrive');assert.equal(h.x,ARRIVAL.berth.x-160);assert.equal(h.arrivalStage,-1);assert.equal(h.y,ARRIVAL.y);
  for(let i=0;i<20;i++)tick(s,.1);assert.equal(h.state,'arrive');assert.ok(h.x>ARRIVAL.berth.x-160);assert.ok(h.x<ARRIVAL.x);
  const loaded=restore(serialize(s));assert.ok(loaded);assert.equal(loaded.heroes.at(-1).state,'arrive');
  for(let i=0;i<300;i++)tick(loaded,.1);assert.notEqual(loaded.heroes.at(-1).state,'arrive');assert.ok(loaded.logs.some(l=>l.message.includes('등록 완료')));
