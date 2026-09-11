@@ -64,3 +64,12 @@
 - 사용자 요청: 등급 일반/매직/레어/세트/유니크, 원작과 다른 이름의 룬워드형 조합, 마을 창고 → 용사 격자 장비창(놓으면 즉시 효과), 큰 장비=큰 칸, 무게, 무기·방어구·장신구 구역의 용사별 무작위 크기, 접두사/접미사 이름, 무한 플레이.
 - 결과: docs/EQUIPMENT_DESIGN.md 작성. 각인석(룬) 30종·진언(룬워드) 20종·세트 9·유니크 24·베이스 42·접사 8단계·격자 프리셋·무게·창고·심연 층·저장 v3 마이그레이션·구현 5단계 정의.
 - 구현 없음. 테스트 변동 없음. HANDOFF.md에 설계 상태와 다음 작업 반영.
+
+## 2026-09-11 · 용사 UI 정리, 사냥터 드래그앤드롭, 픽셀 밀도 2배 (Claude 인계)
+
+- 요청: 용사 목록에서 "N차" 제거·한 행 3명, 장비/전직 메뉴를 하단에서 제거(팝업에 이미 있음), 사냥터를 마을 대기/ACT I~IV 열에 용사 아이콘을 드래그앤드롭으로 배치, 더 작은 픽셀로 현실감(최대 줌 아웃 동일).
+- 구현: 3열 용사 그리드, 하단 메뉴 6개(맵·용사·사냥터·마을·도감·소식)+설정. `setView('workshop'|'skills')`와 대장간 POI는 용사 팝업 탭으로 연결. 사냥터 보드 `.zone-board`(포인터 이벤트 드래그, 터치 지원, 잠긴 액트 거부, 열별 젠 배수). 엔진 `hero.standby`와 `assignZone(s,h,-1)`로 마을 대기, 구 저장은 false 보정.
+- 렌더: 월드 버퍼 1 픽셀 = 1 월드 단위. 지형 8단위 타일 재생성(1회 캐시), 소품/건물/배/장식은 Scale2x로 발자국 유지, 용사·몬스터는 원본 해상도(월드 기준 절반 크기). 기본 줌 125%, 최대 4배, 축소 시 스무딩. 돌길 장식은 flats로 프레임마다 합성.
+- 변경 파일: src/engine.js, src/app.js, src/render.js, src/world-art.js, src/pixel-art.js(scale2x), src/camera.js, index.html, style.css, tests/engine.test.mjs, tests/world.test.mjs, tests/browser-smoke.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
+- 검증: npm test 29개 통과. 격리 헤드리스 Whale에서 browser-smoke 통과(실제 마우스 드래그로 마을 대기↔ACT I 이동, 잠긴 ACT IV 거부, 칩 클릭 시 팝업, 3열 목록, 메뉴 6개, 모바일 레이아웃). 스크린샷 /tmp/dungeonmart-review/.
+- 미구현: 캐릭터 시트 자체의 고해상도화(48×64), 보드의 액트 요약 정보, 대기 용사 정렬.
