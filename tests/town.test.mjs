@@ -14,12 +14,12 @@ test('continent has unequal connected biomes, western uphill grassland and only 
 });
 test('moving the mart changes recovery targets and navigation, persists, and can be undone',()=>{
  const s=createGame(),before=structuredClone(s.town),target=validPlace(s,'mart');s.heroes[0].state='recover';
- const economy={gold:s.treasury,materials:structuredClone(s.materials),inventory:structuredClone(s.inventory)};
+ const economy={gold:s.treasury,materials:structuredClone(s.materials),inventory:structuredClone(s.warehouse)};
  assert.ok(editTown(s,{kind:'move',id:'mart',...target}).ok);assert.equal(MART.x,target.x);assert.equal(MART.y,target.y);
  assert.ok(!isWalkable(target.x,target.y-50));assert.ok(isWalkable(s.heroes[0].x,s.heroes[0].y));
  for(const zone of REGIONS){let prev={x:MART.x,y:MART.y+48};const path=findPath(prev,zone);assert.ok(path.length);for(const p of path){assert.ok(lineOpen(prev,p));prev=p;}}
  const loaded=restore(serialize(s));assert.deepEqual(loaded.town,s.town);tick(loaded,.1);assert.equal(MART.x,target.x);
- assert.equal(s.treasury,economy.gold);assert.deepEqual(s.materials,economy.materials);assert.deepEqual(s.inventory,economy.inventory);
+ assert.equal(s.treasury,economy.gold);assert.deepEqual(s.materials,economy.materials);assert.deepEqual(s.warehouse,economy.inventory);
  assert.ok(editTown(s,{kind:'restore',town:before}).ok);assert.equal(MART.x,1808);assert.equal(MART.y,1200);
 });
 test('town rejects overlapping buildings, blocked roads, invalid saves and out of bounds placements atomically',()=>{

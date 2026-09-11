@@ -93,13 +93,6 @@ export const MONSTERS = {
   mother: { name: '바일 마더', en: 'Vile Mother', shape: 'hulk', color: '#a28476', trait: 'spawn', hp: 1.7, speed: 12 }
 };
 export const MATERIALS = { iron: { name: '철 조각', color: '#b3b6b4' }, crystal: { name: '마력석', color: '#a69bce' }, soul: { name: '영혼 결정', color: '#cf8b71' } };
-export const RARITIES = [
-  { name: '일반', color: '#b4b7ab', mult: 1, price: 35, cost: { iron: 8 }, bonuses: 0 },
-  { name: '마법', color: '#82aacc', mult: 1.65, price: 85, cost: { iron: 16, crystal: 3 }, bonuses: 1 },
-  { name: '희귀', color: '#d3b36d', mult: 2.7, price: 180, cost: { iron: 28, crystal: 10, soul: 2 }, bonuses: 2 },
-  { name: '전설', color: '#d38c5d', mult: 4.3, price: 360, cost: { iron: 45, crystal: 22, soul: 8 }, bonuses: 3 }
-];
-export const SLOT_NAMES = { weapon: '무기', armor: '방어구', accessory: '액세서리' };
 export const STAT_NAMES = { atk: '공격력', def: '방어력', hp: '최대 체력', crit: '치명타', haste: '공격 속도', leech: '생명력 흡수', spell: '스킬 피해', petdamage: '소환수 피해', cooldown: '재사용 감소' };
 export const classOf = hero => CLASSES.find(c => c.id === hero.classId);
 export const nodesOf = hero => {
@@ -108,7 +101,7 @@ export const nodesOf = hero => {
   const third = second?.children.find(b => b.id === hero.path[1]);
   return [cls, second, third].filter(Boolean);
 };
-export const skillsOf = hero => nodesOf(hero).flatMap(n => n.skills.map((s, i) => ({ ...s, id: `${n.id}-${i}`, rank: hero.skillRanks[`${n.id}-${i}`] || 1 })));
+export const skillsOf = hero => nodesOf(hero).flatMap(n => n.skills.map((s, i) => ({ ...s, id: `${n.id}-${i}`, rank: (hero.skillRanks[`${n.id}-${i}`] || 1) + (hero._skillBonus || 0) })));
 export const titleOf = hero => nodesOf(hero).at(-1).name;
 
 // Hero quality is independent of equipment rarity and cosmetic appearance.

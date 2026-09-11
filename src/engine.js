@@ -1,41 +1,71 @@
-import { CLASSES, ZONES, MONSTERS, MART, RARITIES, HERO_GRADES, classOf, skillsOf, nodesOf } from './data.js';
+import { CLASSES, ZONES, MONSTERS, MART, HERO_GRADES, classOf, skillsOf, nodesOf } from './data.js';
+import { BASES, GRADES, GEMS, RUNES, RUNE_LIST, SETS, MANTRAS, uniqueById, itemBase, itemStats, itemPassives, weightOf, priceOf, mantraFor, rollGrid, effectiveGrid, fits, findSpot, totalWeight, weightCapacity, activation, setProgress, summarizeGear, generateItem, rollGrade, makeItem, insertStats, insertName, displayName, dims, levelReq, TIER_LEVEL } from './items.js';
 
 import { WORLD, ARRIVAL, CAMPS, REGIONS, contains, isWalkable, applyTownLayout, freshTown, validateTown, placementError, snapTown, DECORATIONS, TOWN_BOUNDS, currentTownLayout } from './world.js';
 import { moveEntity as move, nearestWalkable, displaceEntity } from './navigation.js';
 
-export const VERSION = 2;
+export const VERSION = 3;
+export const FIELD_DROP_TIME = 300, MAX_FIELD_DROPS = 20;
+export const WAREHOUSE_SIZES = [80, 100, 120, 144, 168, 192];
+const RES_KEY = { fire: 'resFire', cold: 'resCold', lightning: 'resLightning', poison: 'resPoison' };
 export const MAX_HEROES = 20;
 const names = ['라그나', '모르트', '에이라', '세레나', '루시안', '카인', '리브', '애쉬', '노아', '베른', '이리스', '레온', '루나', '테오', '벨라', '시온', '레이', '에덴', '니아', '로웬'];
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const xpNeeded = h => Math.floor(35 + h.level * 17 + h.level ** 1.45 * 3);
 export const availableZone = (s, z) => s.heroes.some(h => h.level >= ZONES[z].level);
-export const passiveValue = (h, key) => skillsOf(h).filter(s => s.passive && s.effect === key).reduce((v, s) => v + s.power * (1 + (s.rank - 1) * .16), 0);
+export const passiveValue = (h, key) => skillsOf(h).filter(s => s.passive && s.effect === key).reduce((v, s) => v + s.power * (1 + (s.rank - 1) * .16), 0) + (h._itemPassives?.[key] || 0);
+const gearCache = new WeakMap();
+const addStats = (into, from, mult = 1) => { for (const [k, v] of Object.entries(from || {})) into[k] = (into[k] || 0) + v * mult; return into; };
+// 장비창 합산: 활성 판정 → 아이템 접사/박음돌/진언 → 세트 보너스. 배치가 바뀔 때만 다시 계산한다.
+export function gearBonus(h, s) {
+  const items = s.items || {}, placed = h.placed || [];
+  const sig = `${s.itemRev || 0}|${h.level}|${h.classId}|${h.path.join()}|${h.grade}|${placed.map(p => `${p.id}${p.x}${p.y}${p.rotated ? 'r' : ''}`).join(',')}`;
+  const cached = gearCache.get(h);
+  if (cached && cached.sig === sig) { h._itemPassives = cached.bonus.passives; h._skillBonus = cached.bonus.skillBonus; return cached.bonus; }
+  const act = activation(h, items), passives = {}, stats = {}; let weight = 0;
+  for (const p of placed) { const item = items[p.id]; if (!item) continue; weight += weightOf(item); if (act.get(p.id)?.active) addStats(passives, itemPassives(item)); }
+  const sets = setProgress(h, items, act), grid = effectiveGrid(h);
+  for (const [setId, count] of Object.entries(sets)) { const set = SETS[setId]; if (!set) continue; for (let n = 2; n <= Math.min(set.pieces.length, count + (passives.setStep || 0)); n++) { const b = set.bonuses[n]; if (b) { addStats(stats, b.stats); addStats(passives, b.passives); } } }
+  const dual = h.path[1] === 'warlord' || passives.dual > 0;
+  for (const p of placed) {
+    const item = items[p.id], a = act.get(p.id); if (!item || !a?.active) continue;
+    let mult = a.secondWeapon && !dual ? .6 : 1;
+    if (item.uniqueId === 'wolfclaw') { const d = dims({ ...item, rotated: p.rotated }), g = grid.accessory; if ((p.x === 0 || p.x + d.w === g.w) && (p.y === 0 || p.y + d.h === g.h)) mult *= 2; }
+    addStats(stats, itemStats(item), mult);
+  }
+  const bonus = { stats, passives, weight, act, sets, capacity: weightCapacity(h, stats.str || 0), skillBonus: Math.max(0, Math.round(stats.skills || 0)) };
+  gearCache.set(h, { sig, bonus }); h._itemPassives = passives; h._skillBonus = bonus.skillBonus;
+  return bonus;
+}
 export function statsOf(h, s) {
-  const base = { atk: 15 + h.level * 3.3, def: 3 + h.level * 1.3, hp: 150 + h.level * 17, crit: .05, haste: 0, leech: 0, spell: 0, petdamage: 0, cooldown: 0 };
+  const base = { atk: 15 + h.level * 3.3, def: 3 + h.level * 1.3, hp: 150 + h.level * 17, crit: .05, haste: 0, leech: 0, spell: 0, petdamage: 0, cooldown: 0, fire: 0, cold: 0, lightning: 0, poison: 0, resFire: 0, resCold: 0, resLightning: 0, resPoison: 0, resAll: 0, dr: 0, regen: 0, move: 0, str: 0, gold: 0, matFind: 0, xp: 0, find: 0, price: 0, thorns: 0, carry: 0, critDmg: 0, revive: 0, skills: 0 };
   if (['barbarian', 'paladin'].includes(h.classId)) { base.hp *= 1.25; base.def += 4; }
   for (const key of ['atk','def','hp']) base[key] *= HERO_GRADES[h.grade ?? 0].multiplier;
-  for (const id of Object.values(h.equipment)) {
-    const item = s.inventory.find(i => i.id === id);
-    if (item) for (const [key, value] of Object.entries(item.stats)) base[key] = (base[key] || 0) + value;
-  }
+  const g = gearBonus(h, s);
+  for (const [key, value] of Object.entries(g.stats)) if (key in base) base[key] += value;
+  base.atk *= 1 + (g.stats.atkPct || 0); base.def *= 1 + (g.stats.defPct || 0); base.hp *= 1 + (g.stats.hpPct || 0);
   for (const key of ['crit', 'haste', 'leech', 'spell', 'petdamage', 'cooldown']) base[key] += passiveValue(h, key);
   base.atk *= 1 + passiveValue(h, 'damage') + (h.pets.length ? passiveValue(h, 'bond') : 0);
   base.def *= 1 + passiveValue(h, 'defense');
-  base.cooldown = Math.min(.6, base.cooldown);
-  base.crit = Math.min(.8, base.crit);
+  const load = g.capacity > 0 ? g.weight / g.capacity : 0;
+  if (load > 1.2) { base.haste -= .25; base.move -= .25; base.regen = 0; } else if (load > 1) { base.haste -= .1; base.move -= .1; }
+  base.revive = (base.revive || 0) + passiveValue(h, 'revive');
+  for (const key of ['resFire', 'resCold', 'resLightning', 'resPoison']) base[key] = Math.min(.75, base[key] + base.resAll);
+  base.dr = Math.min(.4, base.dr); base.cooldown = Math.min(.6, base.cooldown); base.crit = Math.min(.8, base.crit); base.move = Math.max(-.5, base.move); base.haste = Math.max(-.5, base.haste);
+  base.load = load; base.weight = g.weight; base.capacity = g.capacity;
   return base;
 }
 export const powerOf = (h, s) => Math.round(statsOf(h, s).atk * 4 + statsOf(h, s).def * 2 + statsOf(h, s).hp * .12);
 export function makeHero(s, classId, grade = 0) {
   const h = { id: `h${s.nextId++}`, name: names[s.heroes.length] || `용사 ${s.heroes.length + 1}`, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
     hp: 200, shield: 0, x: MART.x + (s.heroes.length % 5 - 2) * 36, y: MART.y + 64, zone: 0, standby: false, state: 'depart', target: null, cooldowns: {}, attackCd: 0, recovery: 0,
-    bag: { iron: 0, crystal: 0, soul: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, equipment: { weapon: null, armor: null, accessory: null }, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
+    bag: { iron: 0, crystal: 0, soul: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, grid: rollGrid(classId), placed: [], bagItems: [], reviveCd: 0, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
   h.hp = statsOf(h, s).hp;
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 10000, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0 }, heroes: [], inventory: [], enemies: [], corpses: [], effects: [], logs: [], kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 10000, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -73,9 +103,11 @@ function heal(s, h, value, source = h) {
   // Healing grants support credit on nearby fights; death rewards are still a shared pool.
   for (const e of s.enemies) if (e.hp > 0 && e.contributors[h.id] && dist(e, source) < 180) e.contributors[source.id] = (e.contributors[source.id] || 0) + value * .5;
 }
-function hurtHero(s, h, raw, e) {
+function hurtHero(s, h, raw, e, element = null) {
   const stat = statsOf(h, s);
   let value = Math.max(1, raw * 100 / (100 + stat.def * 4));
+  if (element && RES_KEY[element]) value *= 1 - stat[RES_KEY[element]];
+  value *= 1 - stat.dr;
   if (h.buffs.guard > 0) value *= .55;
   if (h.buffs.rage > 0) value *= .8;
   if (h.buffs.weaken > 0) value *= 1.3;
@@ -83,7 +115,9 @@ function hurtHero(s, h, raw, e) {
   h.shield -= absorbed; value -= absorbed; h.hp -= value;
   if (value > 1) effect(s, h.x, h.y - 14, `−${Math.ceil(value)}`, '#cc7e71');
   if (e && passiveValue(h, 'thorns')) damage(s, h, e, raw * passiveValue(h, 'thorns'), false, true);
+  if (e && stat.thorns) damage(s, h, e, stat.thorns, false, true);
   if (h.hp <= 0) {
+    if (stat.revive > 0 && !(h.reviveCd > 0)) { h.hp = stat.hp * .5; h.reviveCd = 600; h.shield = 0; effect(s, h.x, h.y - 40, '부활!', '#ffe9a8'); log(s, `${h.name} · 장비의 힘으로 쓰러지지 않았습니다.`, 'level'); return; }
     h.hp = 0; h.state = 'dead'; h.recovery = 10; h.x = MART.x + Math.random() * 35 - 18; h.y = MART.y + 45; h.pets = []; h.target = null;
     log(s, `${h.name} 쓰러짐. 마트에서 10초 후 부활합니다.`, 'danger');
   }
@@ -96,8 +130,13 @@ function damage(s, h, e, raw, spell = false, reactive = false) {
   if (e.curse > 0) amount *= 1.25 + passiveValue(h, 'expose');
   if (e.elite) amount *= 1 + passiveValue(h, 'boss');
   if (e.hp < e.maxHp * .35) amount *= 1 + passiveValue(h, 'execute');
+  if (!spell && !reactive) {
+    amount += st.fire + st.cold + st.lightning;
+    if (st.cold > 0) e.slow = Math.max(e.slow, 1.2);
+    if (st.poison > 0 && !e.dots.some(d => d.heroId === h.id && d.type === 'venom')) e.dots.push({ heroId: h.id, type: 'venom', damage: st.poison, life: 3, tick: 1 });
+  }
   const crit = Math.random() < st.crit;
-  if (crit) amount *= 1.65;
+  if (crit) amount *= 1.65 + st.critDmg;
   e.hp -= amount;
   e.contributors[h.id] = (e.contributors[h.id] || 0) + amount;
   if (st.leech) h.hp = Math.min(st.hp, h.hp + amount * st.leech);
@@ -117,11 +156,13 @@ function kill(s, h, e) {
   const participants = s.heroes.filter(p => e.contributors[p.id] > 0 && p.state !== 'dead');
   const share = Math.max(1, participants.length);
   for (const p of participants) {
-    p.xp += z.xp * reward / share; p.gold += z.gold * reward / share; p.kills++;
-    p.bag[z.material] += reward / share; p.bag.iron += e.zone > 0 ? reward / share : 0;
+    const st = statsOf(p, s);
+    p.xp += z.xp * reward / share * (1 + st.xp); p.gold += z.gold * reward / share * (1 + st.gold); p.kills++;
+    p.bag[z.material] += reward / share * (1 + st.matFind); p.bag.iron += e.zone > 0 ? reward / share * (1 + st.matFind) : 0;
     p.bagKills++;
     levelUp(s, p);
   }
+  if (participants.length) dropLoot(s, e, participants);
   h.soul = Math.min(5, h.soul + (passiveValue(h, 'soul') ? 1 : 0));
   if (passiveValue(h, 'onkill')) h.buffs.rage = 6;
   if (passiveValue(h, 'spread') && e.curse > 0) nearby(s, e, 90).forEach(n => n.curse = 6);
@@ -197,10 +238,71 @@ function cast(s, h, sk, target) {
   s.effects.push({kind:'skill',skillId:sk.id,x:t?.x??h.x,y:t?.y??h.y,from:{x:h.x,y:h.y},to:{x:t?.x??h.x,y:t?.y??h.y},targets:area(155).slice(0,5).map(e=>({x:e.x,y:e.y})),life:1.25,max:1.25});
   return true;
 }
+// ---------------------------------------------------------------- 드롭 · 창고
+export const warehouseCapacity = s => WAREHOUSE_SIZES[s.upgrades.warehouse || 0];
+export const warehouseUsed = s => s.warehouse.reduce((v, id) => v + (s.items[id] ? s.items[id].w * s.items[id].h : 0), 0);
+export const bagCapacity = (h, s) => Math.floor(6 * (1 + statsOf(h, s).carry));
+const SALVAGE = { normal: { iron: 3 }, magic: { iron: 6, crystal: 1 }, rare: { iron: 10, crystal: 4, soul: 1 }, set: { iron: 15, crystal: 8, soul: 4 }, unique: { iron: 15, crystal: 8, soul: 4 } };
+export function salvageValue(item) { const out = {}; for (const [k, v] of Object.entries(SALVAGE[item.grade])) out[k] = v * item.tier; return out; }
+function destroyItem(s, id) { delete s.items[id]; s.warehouse = s.warehouse.filter(x => x !== id); s.fieldDrops = s.fieldDrops.filter(d => d.id !== id); for (const h of s.heroes) { h.placed = h.placed.filter(p => p.id !== id); h.bagItems = h.bagItems.filter(x => x !== id); } s.itemRev++; }
+function locate(s, id) {
+  if (s.warehouse.includes(id)) return { kind: 'warehouse' };
+  for (const h of s.heroes) { if (h.placed.some(p => p.id === id)) return { kind: 'hero', hero: h }; if (h.bagItems.includes(id)) return { kind: 'bag', hero: h }; }
+  if (s.fieldDrops.some(d => d.id === id)) return { kind: 'field' };
+  return null;
+}
+// 창고에 자리가 없으면 자동 분해해 재료로 돌린다.
+export function storeItem(s, id, why = '입고') {
+  const item = s.items[id]; if (!item) return false;
+  if (warehouseUsed(s) + item.w * item.h <= warehouseCapacity(s)) { s.warehouse.push(id); return true; }
+  for (const [k, v] of Object.entries(salvageValue(item))) s.materials[k] += v;
+  log(s, `창고가 가득 차 ${displayName(item)} 자동 분해 (${why})`, 'info');
+  destroyItem(s, id);
+  return false;
+}
+function registerItem(s, item) { item.id = `i${s.nextId++}`; s.items[item.id] = item; s.itemRev++; return item; }
+function dropLoot(s, e, participants) {
+  const z = ZONES[e.zone], ilvl = z.level + Math.floor(Math.random() * 8) + (e.elite ? 3 : 0), kind = e.elite ? 'elite' : 'normal';
+  const findPct = Math.max(...participants.map(p => statsOf(p, s).find));
+  const count = e.elite ? 1 + Math.floor(Math.random() * 2) : Math.random() < .12 ? 1 : 0;
+  for (let i = 0; i < count; i++) {
+    const owner = participants[Math.floor(Math.random() * participants.length)];
+    const grade = rollGrade(kind, findPct, s.pity);
+    const item = registerItem(s, generateItem({ ilvl, grade, kind, classId: owner.classId, findPct, pity: s.pity, codex: s.codex }));
+    if (item.grade === 'set' || item.grade === 'unique') {
+      s.pity = 0; s.fieldDrops.push({ id: item.id, zone: e.zone, x: Math.round(e.x), y: Math.round(e.y), expires: s.time + FIELD_DROP_TIME });
+      if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); storeItem(s, old.id, '오래된 빛기둥'); }
+      effect(s, e.x, e.y - 30, item.grade === 'set' ? '세트!' : '유니크!', GRADES[item.grade].color);
+      log(s, `✦ ${GRADES[item.grade].name} ${item.name} 발견! 지도의 빛기둥을 클릭해 획득하세요.`, 'loot');
+    } else {
+      s.pity++;
+      const cap = bagCapacity(owner, s);
+      if (owner.bagItems.length < cap) owner.bagItems.push(item.id);
+      else { const worst = owner.bagItems.map(id => s.items[id]).sort((a, b) => GRADES[a.grade].order - GRADES[b.grade].order)[0]; if (worst && GRADES[item.grade].order > GRADES[worst.grade].order) { destroyItem(s, worst.id); owner.bagItems.push(item.id); } else destroyItem(s, item.id); }
+    }
+  }
+  if (Math.random() < (e.elite ? .25 : .04)) { const ids = Object.keys(GEMS), id = ids[Math.floor(Math.random() * ids.length)], q = Math.min(4, Math.floor(ilvl / 16) + (Math.random() < .25 ? 1 : 0)); s.drawer.gems[`${id}:${q}`] = (s.drawer.gems[`${id}:${q}`] || 0) + 1; }
+  if (Math.random() < (e.elite ? .15 : .015)) {
+    const maxTier = Math.min(6, e.zone + 1 + (e.elite ? 1 : 0)), tier = Math.max(1, maxTier - Math.floor(Math.random() ** 2 * maxTier)), pool = RUNE_LIST.filter(r => r.tier === tier), r = pool[Math.floor(Math.random() * pool.length)];
+    s.drawer.runes[r.id] = (s.drawer.runes[r.id] || 0) + 1; log(s, `각인석 ${r.name} 획득`, 'loot');
+  }
+}
+export function pickupFieldDrop(s, id) {
+  const drop = s.fieldDrops.find(d => d.id === id), item = s.items[id];
+  if (!drop || !item) return { ok: false, message: '이미 사라진 전리품입니다.' };
+  s.fieldDrops = s.fieldDrops.filter(d => d.id !== id);
+  if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1;
+  const stored = storeItem(s, id, '빛기둥 획득');
+  log(s, `${GRADES[item.grade].name} ${item.name} 획득 · 창고 입고`, 'loot');
+  return { ok: true, message: stored ? `${item.name} 획득! 창고에 보관했습니다.` : '창고가 가득 차 자동 분해되었습니다.', item };
+}
 function deposit(s, h) {
   let total = 0;
   for (const k of Object.keys(h.bag)) { total += h.bag[k]; s.materials[k] += h.bag[k]; h.bag[k] = 0; }
-  if (total > 0) log(s, `${h.name} 귀환 · 재료 ${Math.round(total)}개 입고`, 'loot');
+  const n = h.bagItems.length;
+  for (const id of h.bagItems) storeItem(s, id, `${h.name} 귀환`);
+  h.bagItems = [];
+  if (total > 0 || n) log(s, `${h.name} 귀환 · 재료 ${Math.round(total)}개${n ? ` · 장비 ${n}개` : ''} 입고`, 'loot');
   h.bagKills = 0;
 }
 export function tick(s, dt) {
@@ -209,6 +311,7 @@ export function tick(s, dt) {
   s.time += dt; s.day = 1 + Math.floor(s.time / 300);
   s.effects.forEach(e => e.life -= dt); s.effects = s.effects.filter(e => e.life > 0);
   s.corpses.forEach(c => c.life -= dt); s.corpses = s.corpses.filter(c => c.life > 0);
+  for (const d of [...s.fieldDrops]) if (s.time >= d.expires) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); const item = s.items[d.id]; if (item) { if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1; storeItem(s, d.id, '5분 경과'); log(s, `${item.name}이(가) 창고에 자동 입고되었습니다.`, 'loot'); } }
   for (const z of ZONES) {
     s.spawnCd[z.id] -= dt * s.spawnRates[z.id];
     const count = s.enemies.filter(e => e.zone === z.id && e.hp > 0).length;
@@ -220,6 +323,8 @@ export function tick(s, dt) {
     h.hp = Math.min(h.hp, st.hp);
     for (const key of Object.keys(h.buffs)) h.buffs[key] = Math.max(0, h.buffs[key] - dt);
     for (const key of Object.keys(h.cooldowns)) h.cooldowns[key] = Math.max(0, h.cooldowns[key] - dt);
+    h.reviveCd = Math.max(0, (h.reviveCd || 0) - dt);
+    if (st.regen > 0 && h.state !== 'dead' && h.hp < st.hp) h.hp = Math.min(st.hp, h.hp + st.regen * dt);
     if (!h.buffs.shield && !h.buffs.guard) h.shield = Math.max(0, h.shield - dt * 4);
     if (h.state === 'dead') { h.recovery -= dt; if (h.recovery <= 0) { h.state = 'recover'; h.hp = st.hp * .35; deposit(s, h); } continue; }
     if (h.state === 'arrive') {
@@ -238,16 +343,16 @@ export function tick(s, dt) {
     if (h.standby && (h.state === 'depart' || h.state === 'hunt')) { h.state = 'return'; h.target = null; }
     if (h.state === 'return' || h.hp < st.hp * .28 || h.bagKills >= 12) {
       h.state = 'return'; h.target = null;
-      if (move(h, { x: MART.x + (Number(h.id.slice(1)) % 5 - 2) * 36, y: MART.y + 64 }, 112, dt)) { deposit(s, h); h.state = 'recover'; }
+      if (move(h, { x: MART.x + (Number(h.id.slice(1)) % 5 - 2) * 36, y: MART.y + 64 }, 112 * (1 + st.move), dt)) { deposit(s, h); h.state = 'recover'; }
       continue;
     }
     const z = ZONES[h.zone];
-    if (h.state === 'depart') { if (move(h, z, 112, dt) || dist(h, z) < 130) h.state = 'hunt'; continue; }
+    if (h.state === 'depart') { if (move(h, z, 112 * (1 + st.move), dt) || dist(h, z) < 130) h.state = 'hunt'; continue; }
     let target = s.enemies.find(e => e.id === h.target && e.hp > 0 && e.zone === h.zone);
     if (!target) { target = s.enemies.filter(e => e.zone === h.zone && e.hp > 0).sort((a, b) => dist(a, h) - dist(b, h))[0]; h.target = target?.id; }
     if (!target) continue;
     const range = classOf(h).range;
-    if (dist(h, target) > range) move(h, target, 58, dt);
+    if (dist(h, target) > range) move(h, target, 58 * (1 + st.move * .5), dt);
     h.attackCd -= dt;
     if (dist(h, target) <= range + 5 && h.attackCd <= 0) {
       damage(s, h, target, st.atk * (1 + passiveValue(h, 'basic')));
@@ -285,8 +390,8 @@ export function tick(s, dt) {
     if (distance > (m.range || 23)) move(e, target, m.speed * (e.slow ? .45 : 1), dt);
     e.cd -= dt; e.specialCd -= dt;
     if (e.cd <= 0 && distance < (m.range || 23) + 7) {
-      hurtHero(s, target, e.atk * (e.curse > 0 ? .75 : 1), e);
-      if (m.trait === 'poison') target.buffs.poison = 4;
+      hurtHero(s, target, e.atk * (e.curse > 0 ? .75 : 1), e, m.trait === 'poison' ? 'poison' : m.trait === 'charged' ? 'lightning' : m.trait === 'drain' ? 'cold' : null);
+      if (m.trait === 'poison') target.buffs.poison = 4 * (1 - statsOf(target, s).resPoison);
       if (m.trait === 'curse') target.buffs.weaken = 4;
       if (m.trait === 'drain') e.hp = Math.min(e.maxHp, e.hp + e.atk * .3);
       if (m.range) effect(s, e.x, e.y - 8, '', m.color, 'line', { x: target.x, y: target.y - 8 });
@@ -299,7 +404,7 @@ export function tick(s, dt) {
         if (i >= 0 && s.enemies.filter(n => n.zone === e.zone && n.hp > 0).length < 22) { const c = s.corpses.splice(i, 1)[0]; const n = spawnEnemy(s, e.zone); n.type = c.type; n.x = c.x; n.y = c.y; n.hp = n.maxHp * .4; n.revived = true; effect(s, n.x, n.y, '부활', '#b392c9'); }
       }
       if (m.trait === 'spawn' && s.enemies.filter(n => n.zone === e.zone && n.hp > 0).length < 22) { const n = spawnEnemy(s, e.zone, false, 0); n.x = e.x + 12; n.y = e.y; n.hp *= .3; n.maxHp = n.hp; n.summoned = true; }
-      if (m.trait === 'fire') { targets.filter(h => dist(h, target) < 65).forEach(h => hurtHero(s, h, e.atk * .6, null)); effect(s, target.x, target.y, '', '#c77c50', 'ring'); }
+      if (m.trait === 'fire') { targets.filter(h => dist(h, target) < 65).forEach(h => hurtHero(s, h, e.atk * .6, null, 'fire')); effect(s, target.x, target.y, '', '#c77c50', 'ring'); }
     }
   }
   // Gentle spacing keeps a party legible while sharing the same road or target.
@@ -343,43 +448,166 @@ export function setSpawnRate(s, zone, rate) {
   s.spawnRates[zone] = rate;
   return { ok: true, message: `ACT ${ZONES[zone].act} 몬스터 재생성 ${rate}배` };
 }
-const affixes = [{ key: 'crit', value: .06, name: '정밀한' }, { key: 'haste', value: .1, name: '신속한' }, { key: 'leech', value: .035, name: '흡혈의' }, { key: 'spell', value: .12, name: '비전의' }, { key: 'petdamage', value: .18, name: '망자의' }, { key: 'cooldown', value: .04, name: '시간의' }];
-export function craft(s, slot, classId, rarity) {
-  const r = RARITIES[rarity];
-  if (!r || !['weapon', 'armor', 'accessory'].includes(slot) || !CLASSES.some(c => c.id === classId)) return { ok: false, message: '제작 항목을 확인하세요.' };
-  if (s.inventory.length >= 120) return { ok: false, message: '재고가 가득 찼습니다. 불필요한 장비를 분해하세요.' };
-  if (Object.entries(r.cost).some(([k, v]) => s.materials[k] < v)) return { ok: false, message: '제작 재료가 부족합니다.' };
-  for (const [k, v] of Object.entries(r.cost)) s.materials[k] -= v;
-  const cls = CLASSES.find(c => c.id === classId), mult = r.mult * (1 + s.upgrades.forge * .12);
-  const stats = slot === 'weapon' ? { atk: Math.round(15 * mult) } : slot === 'armor' ? { def: Math.round(7 * mult), hp: Math.round(35 * mult) } : { hp: Math.round(24 * mult), crit: .025 * mult };
-  const pool = [...affixes]; let prefix = '';
-  for (let i = 0; i < r.bonuses; i++) { const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; stats[a.key] = (stats[a.key] || 0) + a.value * (1 + rarity * .3); if (!i) prefix = a.name + ' '; }
-  const item = { id: `i${s.nextId++}`, slot, classId: slot === 'weapon' ? classId : null, rarity, name: prefix + (slot === 'weapon' ? cls.weapon.split(' / ')[0] : slot === 'armor' ? ['여행자의 가죽갑옷', '수호자의 사슬갑옷', '왕실 판금갑옷', '심연의 갑주'][rarity] : ['낡은 부적', '달빛 목걸이', '황혼의 인장', '불멸의 성물'][rarity]), stats, price: r.price, purchased: false,
-    appearance: { weapon: cls.glyph, armor: rarity, color: r.color, aura: slot === 'accessory' ? rarity : 0 } };
-  s.inventory.push(item); s.crafted++;
-  log(s, `${r.name} ${item.name} 제작 완료`, 'loot');
-  return { ok: true, message: `${item.name} 제작 완료! 용사를 선택해 구매·장착하세요.`, item };
-}
-export function equip(s, h, id) {
-  const item = s.inventory.find(i => i.id === id);
-  if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
-  if (item.classId && item.classId !== h.classId) return { ok: false, message: '이 직업이 사용할 수 없는 무기입니다.' };
-  if (!item.purchased && h.gold < item.price) return { ok: false, message: `${h.name}의 골드가 부족합니다. ${item.price} G가 필요합니다.` };
-  if (!item.purchased) { h.gold -= item.price; s.treasury += item.price; s.sales += item.price; item.purchased = true; }
-  for (const other of s.heroes) if (other.equipment[item.slot] === id) other.equipment[item.slot] = null;
-  h.equipment[item.slot] = id;
+// ---------------------------------------------------------------- 장비창 · 제작 · 조합
+const gradeName = item => item.mantra ? '진언' : GRADES[item.grade].name;
+export function placeItem(s, h, id, zone, x, y, rotated = false) {
+  const item = s.items[id]; if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
+  const where = locate(s, id); if (!where || where.kind === 'field') return { ok: false, message: '먼저 빛기둥에서 획득하세요.' };
+  if (where.kind === 'bag') return { ok: false, message: '귀환 후 창고에 입고되면 배치할 수 있습니다.' };
+  if (itemBase(item).zone !== zone) return { ok: false, message: `${displayName(item)}은(는) ${zone === 'weapon' ? '무기칸' : zone === 'armor' ? '방어구칸' : '장신구칸'}에 놓을 수 없습니다.` };
+  const own = where.kind === 'hero' && where.hero === h;
+  if (!fits(h, s.items, item, zone, x, y, rotated, own ? id : null)) return { ok: false, message: '그 자리에는 들어가지 않습니다.' };
+  const st = statsOf(h, s), load = (st.weight - (own ? weightOf(item) : 0) + weightOf(item)) / st.capacity;
+  if (load > 1.5) return { ok: false, message: `${h.name}에게 너무 무겁습니다 (${Math.round(load * 100)}% / 150%).` };
+  if (!item.purchased) {
+    const price = Math.round(item.price * (1 + st.price));
+    if (h.gold < price) return { ok: false, message: `${h.name}의 골드가 부족합니다. ${price} G가 필요합니다.` };
+    h.gold -= price; s.treasury += price; s.sales += price; item.purchased = true;
+    log(s, `${h.name} · ${displayName(item)} 구매 ${price} G`, 'loot');
+  }
+  if (where.kind === 'warehouse') s.warehouse = s.warehouse.filter(i => i !== id);
+  else if (where.kind === 'hero' && !own) where.hero.placed = where.hero.placed.filter(p => p.id !== id);
+  const existing = own ? h.placed.find(p => p.id === id) : null;
+  if (existing) Object.assign(existing, { zone, x, y, rotated }); else h.placed.push({ id, zone, x, y, rotated });
+  s.itemRev++;
+  if (item.setId) s.codex.sets[item.setId] = Math.max(s.codex.sets[item.setId] || 0, gearBonus(h, s).sets[item.setId] || 0);
   h.hp = Math.min(h.hp, statsOf(h, s).hp);
-  log(s, `${h.name} · ${item.name} 장착`, 'loot');
-  return { ok: true, message: `${h.name}에게 ${item.name} 장착 완료` };
+  if (!own) log(s, `${h.name} · ${displayName(item)} 배치`, 'loot');
+  return { ok: true, message: `${h.name}의 ${zone === 'weapon' ? '무기칸' : zone === 'armor' ? '방어구칸' : '장신구칸'}에 ${displayName(item)} 배치` };
+}
+export function autoPlace(s, h, id) {
+  const item = s.items[id]; if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
+  const spot = findSpot(h, s.items, item, h.placed.some(p => p.id === id) ? id : null);
+  if (!spot) return { ok: false, message: `${h.name}의 ${itemBase(item).zone === 'weapon' ? '무기칸' : itemBase(item).zone === 'armor' ? '방어구칸' : '장신구칸'}에 빈 자리가 없습니다.` };
+  return placeItem(s, h, id, spot.zone, spot.x, spot.y, spot.rotated);
+}
+export function rotateItem(s, h, id) {
+  const p = h.placed.find(p => p.id === id); if (!p) return { ok: false, message: '장비창에 없는 장비입니다.' };
+  const item = s.items[id]; if (item.w === item.h) return { ok: false, message: '정사각형 장비는 회전할 필요가 없습니다.' };
+  if (!fits(h, s.items, item, p.zone, p.x, p.y, !p.rotated, id)) return { ok: false, message: '회전하면 자리가 겹칩니다.' };
+  p.rotated = !p.rotated; s.itemRev++;
+  return { ok: true, message: `${displayName(item)} 회전` };
+}
+export function unplaceItem(s, h, id) {
+  const p = h.placed.find(p => p.id === id); const item = s.items[id];
+  if (!p || !item) return { ok: false, message: '장비창에 없는 장비입니다.' };
+  if (warehouseUsed(s) + item.w * item.h > warehouseCapacity(s)) return { ok: false, message: '창고가 가득 찼습니다. 창고를 정리하거나 확장하세요.' };
+  h.placed = h.placed.filter(x => x !== p); s.warehouse.push(id); s.itemRev++;
+  h.hp = Math.min(h.hp, statsOf(h, s).hp);
+  return { ok: true, message: `${displayName(item)}을(를) 창고로 보냈습니다.` };
 }
 export function salvage(s, id) {
-  const item = s.inventory.find(i => i.id === id);
+  const item = s.items[id];
   if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
-  if (s.heroes.some(h => Object.values(h.equipment).includes(id))) return { ok: false, message: '장착 중인 장비는 분해할 수 없습니다.' };
-  for (const [k, v] of Object.entries(RARITIES[item.rarity].cost)) s.materials[k] += Math.floor(v * .5);
-  s.inventory = s.inventory.filter(i => i.id !== id);
-  return { ok: true, message: '장비 분해 완료 · 제작 재료 50% 반환' };
+  if (!s.warehouse.includes(id)) return { ok: false, message: '창고에 있는 장비만 분해할 수 있습니다.' };
+  const gain = salvageValue(item);
+  for (const [k, v] of Object.entries(gain)) s.materials[k] += v;
+  destroyItem(s, id);
+  return { ok: true, message: `${displayName(item)} 분해 · ${Object.entries(gain).map(([k, v]) => `${({ iron: '철', crystal: '마력석', soul: '영혼 결정' })[k]} ${v}`).join(', ')}` };
 }
+const CRAFT_COST = { normal: { iron: 8 }, magic: { iron: 16, crystal: 3 }, rare: { iron: 28, crystal: 10, soul: 2 } };
+export function craftCost(grade, tier = 1) { const out = {}; for (const [k, v] of Object.entries(CRAFT_COST[grade] || {})) out[k] = Math.round(v * [1, 1, 2.5, 5][tier]); return out; }
+export const craftTierAllowed = (s, tier) => tier === 1 || (tier === 2 && s.upgrades.forge >= 2) || (tier === 3 && s.upgrades.forge >= 4);
+export function craft(s, baseKey, grade, tier = 1) {
+  const b = BASES[baseKey];
+  if (!b || !CRAFT_COST[grade] || ![1, 2, 3].includes(tier)) return { ok: false, message: '제작 항목을 확인하세요.' };
+  if (!craftTierAllowed(s, tier)) return { ok: false, message: `${tier}단 베이스 제작에는 제작대 Lv.${tier === 2 ? 2 : 4}가 필요합니다.` };
+  if (warehouseUsed(s) + b.w * b.h > warehouseCapacity(s)) return { ok: false, message: '창고가 가득 찼습니다. 장비를 분해하거나 창고를 확장하세요.' };
+  const cost = craftCost(grade, tier);
+  if (Object.entries(cost).some(([k, v]) => s.materials[k] < v)) return { ok: false, message: '제작 재료가 부족합니다.' };
+  for (const [k, v] of Object.entries(cost)) s.materials[k] -= v;
+  const ilvl = Math.max(TIER_LEVEL[tier], 1 + s.upgrades.forge * 12 + Math.floor(Math.max(...s.heroes.map(h => h.level)) * .5));
+  const item = registerItem(s, generateItem({ ilvl, grade, baseKey, tier, source: 'craft' }));
+  s.warehouse.push(item.id); s.crafted++;
+  log(s, `${gradeName(item)} ${item.name} 제작 완료`, 'loot');
+  return { ok: true, message: `${item.name} 제작 완료! 용사의 장비창에 놓으면 바로 효과가 납니다.`, item };
+}
+const drawerKey = key => key.startsWith('gem:') ? ['gems', key.slice(4)] : ['runes', key.slice(5)];
+export function drawerCount(s, key) { const [k, id] = drawerKey(key); return s.drawer[k][id] || 0; }
+function takeDrawer(s, key, n = 1) { const [k, id] = drawerKey(key); s.drawer[k][id] -= n; if (s.drawer[k][id] <= 0) delete s.drawer[k][id]; }
+function addDrawer(s, key, n = 1) { const [k, id] = drawerKey(key); s.drawer[k][id] = (s.drawer[k][id] || 0) + n; }
+export function insertSocket(s, id, key) {
+  const item = s.items[id]; if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
+  const [type, insertId] = key.split(':');
+  if (!(type === 'gem' && GEMS[insertId]) && !(type === 'rune' && RUNES[insertId])) return { ok: false, message: '박음돌을 선택하세요.' };
+  if (drawerCount(s, key) < 1) return { ok: false, message: '서랍에 그 박음돌이 없습니다.' };
+  const slot = item.inserts.indexOf(null); if (slot < 0) return { ok: false, message: '빈 홈이 없습니다.' };
+  const where = locate(s, id); if (!where || !['warehouse', 'hero'].includes(where.kind)) return { ok: false, message: '창고나 장비창에 있는 장비에만 박을 수 있습니다.' };
+  takeDrawer(s, key); item.inserts[slot] = key;
+  const m = mantraFor(item);
+  if (m) { item.mantra = m.id; s.codex.mantras[m.id] = (s.codex.mantras[m.id] || 0) + 1; log(s, `✦ 진언 '${m.name}' 완성! ${displayName(item)}`, 'level'); }
+  item.price = priceOf(item); s.itemRev++;
+  return { ok: true, message: m ? `진언 '${m.name}'이 새겨졌습니다!` : `${insertName(key)}을(를) 박았습니다.` };
+}
+function gemsAtLeast(s, q) { return Object.entries(s.drawer.gems).filter(([k, n]) => Number(k.split(':')[1]) >= q && n > 0).sort((a, b) => Number(a[0].split(':')[1]) - Number(b[0].split(':')[1])); }
+function consumeGems(s, q, n) { const avail = gemsAtLeast(s, q); let need = n; if (avail.reduce((v, [, c]) => v + c, 0) < n) return false; for (const [k, c] of avail) { const take = Math.min(c, need); takeDrawer(s, `gem:${k}`, take); need -= take; if (!need) break; } return true; }
+export function combine(s, recipe, payload = {}) {
+  const item = payload.id ? s.items[payload.id] : null;
+  const needMaterials = cost => { if (Object.entries(cost).some(([k, v]) => s.materials[k] < v)) return '재료가 부족합니다.'; for (const [k, v] of Object.entries(cost)) s.materials[k] -= v; return null; };
+  if (recipe === 'runeUp') {
+    const r = RUNES[payload.rune], idx = RUNE_LIST.indexOf(r); if (!r || idx >= RUNE_LIST.length - 1) return { ok: false, message: '합성할 각인석을 선택하세요.' };
+    if (drawerCount(s, `rune:${r.id}`) < 3) return { ok: false, message: `${r.name} 3개가 필요합니다.` };
+    if (r.tier >= 4 && s.materials.soul < 5) return { ok: false, message: '은 계열 이상 합성에는 영혼 결정 5가 필요합니다.' };
+    if (r.tier >= 4) s.materials.soul -= 5;
+    takeDrawer(s, `rune:${r.id}`, 3); const next = RUNE_LIST[idx + 1]; addDrawer(s, `rune:${next.id}`);
+    return { ok: true, message: `각인석 ${r.name} ×3 → ${next.name}` };
+  }
+  if (recipe === 'gemUp') {
+    const [gid, q] = String(payload.gem || '').split(':'), g = GEMS[gid], quality = Number(q);
+    if (!g || !(quality >= 0 && quality < 4)) return { ok: false, message: '합성할 보석을 선택하세요.' };
+    if (drawerCount(s, `gem:${gid}:${quality}`) < 3) return { ok: false, message: `${g.name} 3개가 필요합니다.` };
+    takeDrawer(s, `gem:${gid}:${quality}`, 3); addDrawer(s, `gem:${gid}:${quality + 1}`);
+    return { ok: true, message: `${g.name} 합성 완료` };
+  }
+  if (!item) return { ok: false, message: '장비를 선택하세요.' };
+  const where = locate(s, item.id); if (!where || !['warehouse', 'hero'].includes(where.kind)) return { ok: false, message: '창고나 장비창의 장비만 조합할 수 있습니다.' };
+  const b = itemBase(item);
+  if (recipe === 'punch') {
+    if (item.grade !== 'normal' || item.sockets > 0 || !b.sockets) return { ok: false, message: '홈이 없는 일반 장비만 뚫을 수 있습니다.' };
+    const err = needMaterials({ iron: 20, crystal: 10 }); if (err) return { ok: false, message: err };
+    let n = 1; while (n < b.sockets && Math.random() < .5) n++;
+    item.sockets = n; item.inserts = Array(n).fill(null); s.itemRev++;
+    return { ok: true, message: `${displayName(item)}에 홈 ${n}개가 생겼습니다.` };
+  }
+  if (recipe === 'clear') {
+    if (!item.inserts.some(Boolean)) return { ok: false, message: '비울 홈이 없습니다.' };
+    item.inserts = item.inserts.map(() => null); item.mantra = null; item.price = priceOf(item); s.itemRev++;
+    return { ok: true, message: '홈을 비웠습니다. 박음돌은 부서졌습니다.' };
+  }
+  if (recipe === 'reroll') {
+    if (!['magic', 'rare'].includes(item.grade)) return { ok: false, message: '매직·레어 장비만 재련할 수 있습니다.' };
+    if (drawerCount(s, 'gem:diamond:3') < 1) return { ok: false, message: '정제 백금강 1개가 필요합니다.' };
+    const err = needMaterials(item.grade === 'rare' ? { crystal: 10, soul: 10 } : { crystal: 10 }); if (err) return { ok: false, message: err };
+    takeDrawer(s, 'gem:diamond:3');
+    const fresh = generateItem({ ilvl: item.ilvl, grade: item.grade, baseKey: item.base, tier: item.tier, source: 'recipe' });
+    item.affixes = fresh.affixes; item.name = fresh.name; item.nameParts = fresh.nameParts; item.price = priceOf(item); s.itemRev++;
+    return { ok: true, message: `재련 완료 · ${item.name}` };
+  }
+  if (recipe === 'upgrade') {
+    if (item.grade === 'normal') { if (item.mantra || item.inserts.some(Boolean)) return { ok: false, message: '박음돌이 있는 장비는 승급할 수 없습니다.' }; const err = needMaterials({ crystal: 5 }); if (err) return { ok: false, message: err }; }
+    else if (item.grade === 'magic') { if (gemsAtLeast(s, 3).reduce((v, [, c]) => v + c, 0) < 3) return { ok: false, message: '정제 등급 이상 보석 3개가 필요합니다.' }; const err = needMaterials({ crystal: 20 }); if (err) return { ok: false, message: err }; consumeGems(s, 3, 3); }
+    else return { ok: false, message: '일반→매직, 매직→레어만 승급할 수 있습니다.' };
+    const grade = item.grade === 'normal' ? 'magic' : 'rare', fresh = generateItem({ ilvl: item.ilvl, grade, baseKey: item.base, tier: item.tier, source: 'recipe' });
+    item.grade = fresh.grade; item.affixes = fresh.affixes; item.name = fresh.name; item.nameParts = fresh.nameParts; item.quality = 0; item.sockets = Math.min(item.sockets, 2); item.inserts = item.inserts.slice(0, item.sockets); item.price = priceOf(item); s.itemRev++;
+    return { ok: true, message: `승급 완료 · ${GRADES[item.grade].name} ${item.name}` };
+  }
+  if (recipe === 'tierUp') {
+    if (!['set', 'unique'].includes(item.grade) || item.tier >= 3) return { ok: false, message: '3단 미만의 세트·유니크만 올릴 수 있습니다.' };
+    const next = item.tier + 1, soul = next === 2 ? 30 : 80, gems = next === 2 ? 2 : 3;
+    if (gemsAtLeast(s, 4).reduce((v, [, c]) => v + c, 0) < gems) return { ok: false, message: `완전 보석 ${gems}개가 필요합니다.` };
+    const err = needMaterials({ soul }); if (err) return { ok: false, message: err };
+    consumeGems(s, 4, gems);
+    const def = item.setId ? SETS[item.setId].pieces[item.setIndex].stats : uniqueById(item.uniqueId)?.stats || item.affixes[0].stats;
+    const mult = [1, 1, 1.8, 3.2];
+    item.tier = next; item.implicit = Object.fromEntries(Object.entries(b.implicit).map(([k, v]) => [k, ['atk', 'def', 'hp', 'thorns', 'regen', 'str'].includes(k) ? Math.round(v * [0, 1, 1.9, 3.4][next]) : v]));
+    item.affixes[0].stats = Object.fromEntries(Object.entries(def).map(([k, v]) => [k, ['atk', 'def', 'hp', 'thorns', 'regen', 'str', 'fire', 'cold', 'lightning', 'poison'].includes(k) ? Math.round(v * mult[next]) : v]));
+    if (item.setId) item.name = `${SETS[item.setId].name}의 ${b.names[next - 1]}`;
+    item.weight = Math.round(b.weight * [1, 1, 1.2, 1.4][next] * 10) / 10; item.price = priceOf(item); s.itemRev++;
+    return { ok: true, message: `${displayName(item)} ${next}단 승급!` };
+  }
+  return { ok: false, message: '조합 항목을 선택하세요.' };
+}
+export function gearSummary(h, s) { return summarizeGear(h, s.items || {}, gearBonus(h, s).act); }
 export function promote(s, h, id) {
   const nodes = nodesOf(h), stage = h.path.length + 2;
   if (stage > 3) return { ok: false, message: '최종 전직을 완료했습니다.' };
@@ -402,7 +630,7 @@ export function upgradeSkill(s, h, id) {
 }
 export function resetSkills(s, h) { h.skillPoints += Object.values(h.skillRanks).reduce((sum, rank) => sum + rank * (rank - 1) / 2, 0); h.skillRanks = {}; return { ok: true, message: '스킬 포인트를 전부 돌려받았습니다.' }; }
 export function upgradeMart(s, facility) {
-  if (!['forge', 'clinic'].includes(facility)) return { ok: false, message: '시설을 선택하세요.' };
+  if (!['forge', 'clinic', 'warehouse'].includes(facility)) return { ok: false, message: '시설을 선택하세요.' };
   const cost = 150 * (s.upgrades[facility] + 1);
   if (s.upgrades[facility] >= 5) return { ok: false, message: '최고 레벨 시설입니다.' };
   if (s.treasury < cost) return { ok: false, message: `마트 운영금 ${cost} G가 필요합니다.` };
@@ -427,7 +655,7 @@ export function editTown(s, action) {
   for(const h of s.heroes){if(h.arrivalStage===-1)continue;if(h.state==='recover'||h.state==='dead'){h.x=MART.x+(Number(h.id.slice(1))%5-2)*32;h.y=MART.y+48;}if(!isWalkable(h.x,h.y))Object.assign(h,nearestWalkable(h));}
   return {ok:true,message:action.kind==='move'?'시설을 옮겼습니다.':'마을 배치를 저장했습니다.'};
 }
-export function serialize(s) { return JSON.stringify({ ...s, effects: [], savedAt: Date.now() }); }
+export function serialize(s) { return JSON.stringify({ ...s, effects: [], savedAt: Date.now() }, (k, v) => k.startsWith('_') ? undefined : v); }
 export function restore(raw) {
   const previousTown=currentTownLayout();
   try {
@@ -444,11 +672,17 @@ export function restore(raw) {
       if (typeof v === 'object') return Object.entries(v).every(([k, x]) => !['__proto__', 'constructor', 'prototype'].includes(k) && safe(x, depth + 1));
       return false;
     };
-    if (!obj(s) || !safe(s) || ![1,VERSION].includes(s.version)) return null;
-    if (!Array.isArray(s.heroes) || !s.heroes.length || s.heroes.length > MAX_HEROES || !Array.isArray(s.inventory) || s.inventory.length > 120 || !Array.isArray(s.enemies) || s.enemies.length > 150) return null;
+    if (!obj(s) || !safe(s) || ![1,2,VERSION].includes(s.version)) return null;
+    const wasVersion = s.version;
+    if (s.version < VERSION && !migrateItems(s)) return null;
+    if (!Array.isArray(s.heroes) || !s.heroes.length || s.heroes.length > MAX_HEROES || !obj(s.items) || Object.keys(s.items).length > 2000 || !Array.isArray(s.warehouse) || !Array.isArray(s.fieldDrops) || !Array.isArray(s.enemies) || s.enemies.length > 150) return null;
     if (!['time','day','treasury','nextId','kills','crafted','sales'].every(k => num(s[k]) && s[k] >= 0) || !Number.isInteger(s.nextId)) return null;
     if (!nums(s.materials) || !['iron','crystal','soul'].every(k => num(s.materials[k]) && s.materials[k] >= 0)) return null;
-    if (!obj(s.upgrades) || !['forge','clinic'].every(k => Number.isInteger(s.upgrades[k]) && s.upgrades[k] >= 0 && s.upgrades[k] <= 5)) return null;
+    s.upgrades.warehouse ??= 0;
+    if (!obj(s.upgrades) || !['forge','clinic','warehouse'].every(k => Number.isInteger(s.upgrades[k]) && s.upgrades[k] >= 0 && s.upgrades[k] <= 5)) return null;
+    s.pity ??= 0; s.itemRev ??= 0; s.codex ??= { sets: {}, uniques: {}, mantras: {} }; s.drawer ??= { gems: {}, runes: {} };
+    if (!num(s.pity) || !num(s.itemRev) || !obj(s.codex) || !nums(s.codex.sets) || !nums(s.codex.uniques) || !nums(s.codex.mantras) || !obj(s.drawer) || !nums(s.drawer.gems) || !nums(s.drawer.runes)) return null;
+    if (!Object.keys(s.drawer.gems).every(k => { const [g, q] = k.split(':'); return GEMS[g] && ['0','1','2','3','4'].includes(q) && s.drawer.gems[k] >= 0; }) || !Object.keys(s.drawer.runes).every(k => RUNES[k] && s.drawer.runes[k] >= 0)) return null;
     if (!['zoneKills','spawnCd'].every(k => Array.isArray(s[k]) && s[k].length === 4 && s[k].every(num))) return null;
     if (!Array.isArray(s.logs) || s.logs.length > 60 || !s.logs.every(l => obj(l) && num(l.time) && typeof l.message === 'string' && ['info','system','loot','danger','level'].includes(l.type))) return null;
     if (!Array.isArray(s.corpses) || !s.corpses.every(c => obj(c) && ['x','y','life','zone'].every(k=>num(c[k])) && ZONES[c.zone] && MONSTERS[c.type])) return null;
@@ -459,7 +693,9 @@ export function restore(raw) {
       if (!obj(h) || !/^h\d+$/.test(h.id) || ids.has(h.id)) return null; ids.add(h.id);
       h.grade ??= 0; h.standby = h.standby === true;
       if (!Number.isInteger(h.grade) || !HERO_GRADES[h.grade]) return null;
-      if (typeof h.name !== 'string' || !CLASSES.some(c=>c.id===h.classId) || !Array.isArray(h.path) || h.path.length > 2 || !obj(h.equipment) || !nums(h.skillRanks) || !nums(h.cooldowns) || !nums(h.buffs) || !nums(h.bag)) return null;
+      if (typeof h.name !== 'string' || !CLASSES.some(c=>c.id===h.classId) || !Array.isArray(h.path) || h.path.length > 2 || !obj(h.grid) || !Array.isArray(h.placed) || !Array.isArray(h.bagItems) || !nums(h.skillRanks) || !nums(h.cooldowns) || !nums(h.buffs) || !nums(h.bag)) return null;
+      h.reviveCd ??= 0; if (!num(h.reviveCd)) return null;
+      if (!['weapon','armor','accessory'].every(z => obj(h.grid[z]) && Number.isInteger(h.grid[z].w) && Number.isInteger(h.grid[z].h) && h.grid[z].w >= 1 && h.grid[z].w <= 8 && h.grid[z].h >= 1 && h.grid[z].h <= 8)) return null;
       if (!['hp','xp','gold','x','y','attackCd','recovery','bagKills','kills','shield','skillPoints','soul','attacks'].every(k=>num(h[k])) || h.hp < 0 || h.gold < 0) return null;
       if (!Number.isInteger(h.level) || h.level < 1 || h.level > 60 || !ZONES[h.zone] || !['hunt','depart','return','recover','dead','arrive'].includes(h.state)) return null;
       if (!['iron','crystal','soul'].every(k=>num(h.bag[k]) && h.bag[k]>=0) || !obj(h.costume) || !['equipment','ash','crimson','forest','midnight'].includes(h.costume.palette)) return null;
@@ -468,15 +704,7 @@ export function restore(raw) {
       if (h.path.length && !second || h.path.length===2 && !second.children.some(b=>b.id===h.path[1])) return null;
       if (!Object.entries(h.skillRanks).every(([id,rank])=>skillsOf(h).some(sk=>sk.id===id) && Number.isInteger(rank) && rank>=1 && rank<=5)) return null;
     }
-    for (const i of s.inventory) {
-      if (!obj(i) || !/^i\d+$/.test(i.id) || ids.has(i.id)) return null;ids.add(i.id);
-      if (!['weapon','armor','accessory'].includes(i.slot) || !RARITIES[i.rarity] || !num(i.price) || typeof i.name!=='string' || typeof i.purchased!=='boolean' || !nums(i.stats) || !obj(i.appearance)) return null;
-      if (i.slot==='weapon' && !CLASSES.some(c=>c.id===i.classId) || i.slot!=='weapon' && i.classId!==null) return null;
-      if (!/^#[0-9a-f]{6}$/i.test(i.appearance.color) || !num(i.appearance.armor)) return null;
-    }
-    for (const h of s.heroes) for (const slot of ['weapon','armor','accessory']) {
-      const id=h.equipment[slot];if(id!==null && !s.inventory.some(i=>i.id===id && i.slot===slot && i.purchased && (!i.classId||i.classId===h.classId))) return null;
-    }
+    if (!validateItems(s, ids, num, obj, nums)) return null;
     for (const e of s.enemies) {
       if (!obj(e) || !MONSTERS[e.type] || !ZONES[e.zone] || !/^e\d+$/.test(e.id) || !nums(e.contributors)) return null;
       if (!['hp','maxHp','atk','x','y','cd','specialCd','slow','stun','curse','fear'].every(k=>num(e[k])) || !Array.isArray(e.dots)) return null;
@@ -487,8 +715,8 @@ export function restore(raw) {
     if(s.worldRevision!==undefined&&(!Number.isInteger(s.worldRevision)||s.worldRevision<1||s.worldRevision>WORLD.revision))return null;
     for(const h of s.heroes){h.arrivalStage??=0;h.arrivalWait??=0;if(h.state==='arrive'&&(![-1,0,1,2].includes(h.arrivalStage)||!num(h.arrivalWait)))return null;}
     applyTownLayout(s.town);
-    if(s.version===1||s.worldRevision!==WORLD.revision){
-      const old=s.version===1?[{x:235,y:235},{x:785,y:235},{x:235,y:635},{x:785,y:635}]:[{x:656,y:608},{x:2944,y:608},{x:656,y:2160},{x:2944,y:2160}];
+    if(wasVersion===1||s.worldRevision!==WORLD.revision){
+      const old=wasVersion===1?[{x:235,y:235},{x:785,y:235},{x:235,y:635},{x:785,y:635}]:[{x:656,y:608},{x:2944,y:608},{x:656,y:2160},{x:2944,y:2160}];
       for(const h of s.heroes){
         const p=nearestWalkable(h.state==='hunt'?{x:REGIONS[h.zone].x+clamp(h.x-old[h.zone].x,-260,260),y:REGIONS[h.zone].y+clamp(h.y-old[h.zone].y,-240,240)}:{x:MART.x+(Number(h.id.slice(1))%5-2)*32,y:MART.y+48});
         h.x=p.x;h.y=p.y;h.target=null;h.pets=[];h.arrivalStage=0;h.arrivalWait=0;
@@ -500,6 +728,64 @@ export function restore(raw) {
     // One-time operating fund correction, preserving all other progression.
     if (s.operatingGrantApplied !== true) { s.treasury = 10000; s.operatingGrantApplied = true; }
     s.effects = [];
+    for (const h of s.heroes) gearBonus(h, s);
     return s;
   } catch { return null; } finally { applyTownLayout(previousTown); }
+}
+const INSERT_OK = key => key === null || (typeof key === 'string' && (key.startsWith('gem:') ? (() => { const [, g, q] = key.split(':'); return GEMS[g] && ['0','1','2','3','4'].includes(q); })() : key.startsWith('rune:') && RUNES[key.slice(5)]));
+function validateItems(s, ids, num, obj, nums) {
+  const seen = new Map();
+  const note = (id, where) => { if (seen.has(id)) return false; seen.set(id, where); return true; };
+  for (const [id, i] of Object.entries(s.items)) {
+    if (!obj(i) || i.id !== id || !/^i\d+$/.test(id) || ids.has(id)) return false; ids.add(id);
+    const b = BASES[i.base]; if (!b || ![1,2,3].includes(i.tier) || !GRADES[i.grade] || typeof i.name !== 'string' || typeof i.purchased !== 'boolean' || !nums(i.implicit) || !Array.isArray(i.affixes) || !Number.isInteger(i.sockets) || i.sockets < 0 || i.sockets > 6 || !Array.isArray(i.inserts) || i.inserts.length !== i.sockets || !i.inserts.every(INSERT_OK)) return false;
+    if (!i.affixes.every(a => obj(a) && typeof a.name === 'string' && nums(a.stats)) || !num(i.ilvl) || !num(i.weight) || !num(i.price)) return false;
+    if (i.setId !== null && i.setId !== undefined && (!SETS[i.setId] || !Number.isInteger(i.setIndex) || !SETS[i.setId].pieces[i.setIndex])) return false;
+    if (i.uniqueId && !uniqueById(i.uniqueId) && i.origin !== 'migrate') return false;
+    if (i.mantra && !MANTRAS.some(m => m.id === i.mantra)) return false;
+    i.w = b.w; i.h = b.h; i.rotated = false; i.quality ??= 0; i.nameParts ??= {}; i.origin ??= 'drop';
+  }
+  for (const id of s.warehouse) if (!s.items[id] || !note(id, 'w')) return false;
+  for (const d of s.fieldDrops) if (!obj(d) || !s.items[d.id] || !ZONES[d.zone] || !num(d.x) || !num(d.y) || !num(d.expires) || !note(d.id, 'f')) return false;
+  for (const h of s.heroes) {
+    for (const id of h.bagItems) if (!s.items[id] || !note(id, 'b')) return false;
+    for (const p of h.placed) {
+      if (!obj(p) || !s.items[p.id] || !['weapon','armor','accessory'].includes(p.zone) || itemBase(s.items[p.id]).zone !== p.zone || !Number.isInteger(p.x) || !Number.isInteger(p.y) || typeof p.rotated !== 'boolean' || !note(p.id, 'h')) return false;
+    }
+    for (const p of h.placed) if (!fits(h, s.items, s.items[p.id], p.zone, p.x, p.y, p.rotated, p.id)) return false;
+  }
+  for (const id of Object.keys(s.items)) if (!seen.has(id)) s.warehouse.push(id);
+  return true;
+}
+// version 1·2 저장: 슬롯 장비를 격자 장비로 바꾼다. 능력치는 implicit로 그대로 보존한다.
+function migrateItems(s) {
+  const obj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  s.items ??= {}; s.warehouse ??= []; s.fieldDrops ??= []; s.drawer ??= { gems: {}, runes: {} }; s.codex ??= { sets: {}, uniques: {}, mantras: {} }; s.pity ??= 0; s.itemRev ??= 0;
+  if (!obj(s.upgrades)) return false; s.upgrades.warehouse ??= 0;
+  const old = Array.isArray(s.inventory) ? s.inventory : [], WEAPON_OF = { barbarian: 'axe2h', necromancer: 'wand', amazon: 'shortbow', sorceress: 'staff', paladin: 'hammer2h' };
+  for (const i of old) {
+    if (!obj(i) || typeof i.id !== 'string' || !Number.isInteger(i.rarity) || i.rarity < 0 || i.rarity > 3 || !obj(i.stats)) return false;
+    const baseKey = i.slot === 'weapon' ? WEAPON_OF[i.classId] : i.slot === 'armor' ? ['leather', 'chain', 'chain', 'plate'][i.rarity] : 'amulet';
+    if (!BASES[baseKey]) return false;
+    const item = makeItem(BASES[baseKey], { tier: 1, grade: ['normal', 'magic', 'rare', 'unique'][i.rarity], ilvl: 10 * (i.rarity + 1) });
+    item.id = i.id; item.implicit = { ...i.stats }; item.name = i.rarity === 3 ? `옛 시대의 ${i.name}` : String(i.name); item.purchased = i.purchased === true; item.origin = 'migrate'; item.price = Number.isFinite(i.price) ? i.price : priceOf(item);
+    if (i.rarity === 3) item.affixes = [{ id: 'legacy', kind: 'fixed', name: '옛 시대의 유물', tier: 3, stats: {} }];
+    s.items[item.id] = item;
+  }
+  for (const h of s.heroes) {
+    if (!obj(h)) return false;
+    h.grid ??= rollGrid(h.classId); h.placed ??= []; h.bagItems ??= []; h.reviveCd ??= 0;
+    const eq = obj(h.equipment) ? h.equipment : {};
+    for (const slot of ['weapon', 'armor', 'accessory']) {
+      const item = s.items[eq[slot]]; if (!item) continue;
+      const b = itemBase(item); if (b.zone === 'weapon' && (h.grid.weapon.w < b.w || h.grid.weapon.h < b.h)) h.grid.weapon = { w: b.w, h: b.h };
+      const spot = findSpot(h, s.items, item);
+      if (spot && !h.placed.some(p => p.id === item.id)) h.placed.push({ id: item.id, ...spot });
+    }
+    delete h.equipment;
+  }
+  const placed = new Set(s.heroes.flatMap(h => h.placed.map(p => p.id)));
+  for (const i of old) if (!placed.has(i.id) && !s.warehouse.includes(i.id)) s.warehouse.push(i.id);
+  delete s.inventory; s.version = VERSION;
+  return true;
 }

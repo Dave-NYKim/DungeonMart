@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf } from '../src/data.js';
-import { createGame, tick, craft, equip, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart } from '../src/engine.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart } from '../src/engine.js';
+import { BASES, effectiveGrid } from '../src/items.js';
+// 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
+const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
 import { MART } from '../src/world.js';
 const rich = () => {const s=createGame();s.materials={iron:10000,crystal:10000,soul:10000};s.treasury=10000;return s;};
 test('automatic hunting yields XP, personal gold, shared materials and return trips',()=>{
@@ -10,20 +13,21 @@ test('automatic hunting yields XP, personal gold, shared materials and return tr
   for(const h of s.heroes){assert.ok(Number.isFinite(h.hp));assert.ok(h.hp>=0);assert.ok(h.hp<=statsOf(h,s).hp);assert.ok(h.gold>100);}
   assert.ok(s.logs.some(l=>l.message.includes('귀환')));
 });
-test('crafting consumes materials and purchases transfer gold exactly once',()=>{
+test('crafting consumes materials and first placement purchases exactly once',()=>{
   const s=rich(),h=s.heroes[0],startAtk=statsOf(h,s).atk;
-  const r=craft(s,'weapon',h.classId,0);assert.ok(r.ok);assert.equal(s.materials.iron,9992);
-  const before=s.treasury;assert.ok(equip(s,h,r.item.id).ok);assert.equal(h.gold,65);assert.equal(s.treasury,before+35);assert.ok(statsOf(h,s).atk>startAtk);
-  assert.ok(equip(s,h,r.item.id).ok);assert.equal(h.gold,65);assert.equal(s.treasury,before+35);
-  assert.equal(equip(s,s.heroes[1],r.item.id).ok,false);assert.equal(salvage(s,r.item.id).ok,false);
+  const r=craft(s,weaponFor(h),'normal');assert.ok(r.ok,r.message);assert.equal(s.materials.iron,9992);assert.ok(s.warehouse.includes(r.item.id));
+  const before=s.treasury,price=r.item.price;assert.ok(price>0);assert.ok(autoPlace(s,h,r.item.id).ok);assert.equal(h.gold,100-price);assert.equal(s.treasury,before+price);assert.ok(statsOf(h,s).atk>startAtk);
+  const p=h.placed[0];assert.ok(placeItem(s,h,r.item.id,p.zone,p.x,p.y,p.rotated).ok);assert.equal(h.gold,100-price);assert.equal(s.treasury,before+price);
+  assert.equal(salvage(s,r.item.id).ok,false);
+  assert.ok(unplaceItem(s,h,r.item.id).ok);assert.ok(statsOf(h,s).atk<=startAtk+.001);assert.ok(salvage(s,r.item.id).ok);assert.ok(s.materials.iron>9992);
 });
-test('owned shared armor transfers without charging either hero',()=>{
-  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'armor',a.classId,0).item;
-  equip(s,a,item.id);const bank=s.treasury,bGold=b.gold;
-  assert.ok(equip(s,b,item.id).ok);assert.equal(a.equipment.armor,null);assert.equal(b.equipment.armor,item.id);assert.equal(b.gold,bGold);assert.equal(s.treasury,bank);
+test('owned shared armor transfers between heroes without charging twice',()=>{
+  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'leather','normal').item;
+  assert.ok(autoPlace(s,a,item.id).ok);const bank=s.treasury,bGold=b.gold;
+  assert.ok(autoPlace(s,b,item.id).ok);assert.equal(a.placed.length,0);assert.equal(b.placed[0].id,item.id);assert.equal(b.gold,bGold);assert.equal(s.treasury,bank);
 });
 test('invalid or unaffordable transactions leave state unchanged',()=>{
-  const s=createGame();s.materials.iron=0;const before=s.materials.iron;assert.equal(craft(s,'weapon','barbarian',3).ok,false);assert.equal(s.materials.iron,before);
+  const s=createGame();s.materials.iron=0;const before=s.materials.iron;assert.equal(craft(s,'axe2h','rare').ok,false);assert.equal(s.materials.iron,before);assert.equal(craft(s,'nope','normal').ok,false);
   assert.equal(assignZone(s,s.heroes[0],3).ok,false);assert.equal(s.heroes[0].zone,0);
   s.treasury=0;assert.equal(recruit(s,'amazon').ok,false);assert.equal(upgradeMart(s,'forge').ok,false);
 });
@@ -54,7 +58,7 @@ test('recruitment caps the roster at twenty and all four acts unlock by level',(
 test('every final class can simulate combat in every act without invalid state',()=>{
   for(const c of CLASSES)for(const branch of c.branches)for(const final of branch.children){
     const s=rich(),h=s.heroes.find(h=>h.classId===c.id);h.level=40;h.gold=10000;promote(s,h,branch.id);promote(s,h,final.id);
-    for(const slot of ['weapon','armor','accessory'])equip(s,h,craft(s,slot,h.classId,3).item.id);
+    for(const base of [weaponFor(h),'chain','amulet'])assert.ok(autoPlace(s,h,craft(s,base,'rare').item.id).ok);
     s.heroes=[h];
     for(const z of ZONES){h.zone=z.id;h.x=z.x;h.y=z.y;h.state='hunt';h.hp=statsOf(h,s).hp;
       for(let i=0;i<400;i++)tick(s,.1);
@@ -63,8 +67,8 @@ test('every final class can simulate combat in every act without invalid state',
   }
 });
 test('saved progression round-trips with equipment, costumes and skills intact',()=>{
-  const s=rich(),h=s.heroes[0];h.level=20;promote(s,h,'berserker');h.costume.palette='crimson';equip(s,h,craft(s,'weapon',h.classId,1).item.id);
-  const loaded=restore(serialize(s));assert.ok(loaded);assert.deepEqual(loaded.heroes,s.heroes);assert.deepEqual(loaded.inventory,s.inventory);assert.equal(restore('broken'),null);assert.equal(restore('{"version":90}'),null);
+  const s=rich(),h=s.heroes[0];h.level=20;promote(s,h,'berserker');h.costume.palette='crimson';autoPlace(s,h,craft(s,weaponFor(h),'magic').item.id);
+  const loaded=restore(serialize(s));assert.ok(loaded);assert.deepEqual(JSON.parse(serialize(loaded)).heroes,JSON.parse(serialize(s)).heroes);assert.deepEqual(loaded.items,s.items);assert.deepEqual(loaded.warehouse,s.warehouse);assert.equal(restore('broken'),null);assert.equal(restore('{"version":90}'),null);
   for(let i=0;i<100;i++)tick(loaded,.1);assert.ok(loaded.time>0);
 });
 test('incomplete or unsafe imported saves are rejected instead of crashing the game',()=>{
