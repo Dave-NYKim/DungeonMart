@@ -83,6 +83,33 @@ export function heroSprite(a,frame=0,attack=false){
  if(a.tier===2){r(10,1,3,1,'#ecd586');r(11,0,1,3,'#ffe8a3');}
  if(heroCache.size>800)heroCache.clear();heroCache.set(key,canvas);return canvas;
 }
+// Boss: an original "cinder lord" — ash-black hide split by ember cracks, bone horns, tattered wings. 64×72, feet at (32,68).
+const bossCache=new Map();
+export function bossSprite(frame=0){
+ if(bossCache.has(frame))return bossCache.get(frame);
+ const canvas=canvasOf(64,72),c=canvas.getContext('2d'),r=(x,y,w,h,col)=>rect(c,x,y,w,h,col);
+ const ash='#2b2428',ashL='#4a3d42',ashD='#17131a',ember='#ff8f3a',emberL='#ffd27a',bone='#dccbaa',boneD='#9d8a67',wing='#4b2233',wingL='#7a3449',eye='#ffc14d',f=frame?1:0;
+ poly(c,[[24,26],[6,12-f*3],[2,30],[8,44],[20,40]],ashD);poly(c,[[24,27],[9,15-f*3],[5,30],[10,42],[20,39]],wing);
+ poly(c,[[40,26],[58,12-f*3],[62,30],[56,44],[44,40]],ashD);poly(c,[[40,27],[55,15-f*3],[59,30],[54,42],[44,39]],wing);
+ for(const [x0,y0,x1,y1] of [[24,27,9,15-f*3],[24,28,5,30],[24,29,10,42],[40,27,55,15-f*3],[40,28,59,30],[40,29,54,42]])stroke(c,x0,y0,x1,y1,wingL);
+ stroke(c,42,52,52,58,ashD,3);stroke(c,52,58,58,54,ashD,3);poly(c,[[56,50],[62,54],[57,58]],ashD);stroke(c,43,52,52,57,ashL);
+ r(22,50,8,14,ashD);r(34,50,8,14,ashD);r(23,51,5,11,ash);r(36,51,5,11,ash);r(20,63,10,5,ashD);r(34,63,10,5,ashD);r(21,64,3,2,ashL);r(35,64,3,2,ashL);
+ panel(c,18,24,28,28,ash,ashD);r(20,26,24,10,ashL);r(22,36,20,12,ash);
+ for(let i=0;i<3;i++){r(20,38+i*4,9,1,ashD);r(35,38+i*4,9,1,ashD);}
+ stroke(c,31,28,29,44,ember);stroke(c,32,30,34,40,ember);r(30,34,3,1,emberL);r(32,38,2,1,emberL);stroke(c,24,30,22,36,ember);stroke(c,40,31,42,37,ember);
+ oval(c,16,28,7,5,ashD);oval(c,16,27,5,3,ashL);oval(c,48,28,7,5,ashD);oval(c,48,27,5,3,ashL);
+ r(9,30,8,18,ashD);r(10,31,6,15,ash);r(47,30,8,18,ashD);r(48,31,6,15,ash);
+ stroke(c,12,33,12,44,ember);stroke(c,51,33,51,44,ember);
+ r(7,47,11,6,ashD);r(46,47,11,6,ashD);for(const x of [8,11,14])r(x,53,2,4-f,bone);for(const x of [47,50,53])r(x,53,2,4-f,bone);
+ r(28,20,8,5,ashD);panel(c,22,8,20,16,ash,ashD);r(24,10,16,6,ashL);c.clearRect(22,8,2,2);c.clearRect(40,8,2,2);r(23,17,3,4,ashD);r(38,17,3,4,ashD);
+ r(24,13,16,2,ashD);r(26,15,4,3,eye);r(34,15,4,3,eye);r(27,15,1,1,'#fff6d0');r(35,15,1,1,'#fff6d0');r(26,18,12,1,ashD);
+ r(25,19,14,4,ashD);r(27,20,10,2,'#5a1f24');for(const x of [27,31,35])r(x,19,1,2,bone);
+ stroke(c,25,9,20,3,bone,2);stroke(c,20,3,17,0,bone,2);stroke(c,25,9,21,4,boneD);
+ stroke(c,39,9,44,3,bone,2);stroke(c,44,3,47,0,bone,2);stroke(c,39,9,43,4,boneD);
+ for(const [x,y] of [[28,6],[32,4],[36,6]])r(x,y,2,3,ember);r(32,3,2,1,emberL);
+ for(let x=23;x<41;x+=3)r(x,24,2,1,boneD);
+ bossCache.set(frame,canvas);return canvas;
+}
 const monsterCache=new Map();
 export function monsterSprite(m,frame=0,cursed=false){
  const key=JSON.stringify([m.shape,m.color,frame,cursed]);if(monsterCache.has(key))return monsterCache.get(key);

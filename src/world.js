@@ -40,7 +40,6 @@ export const POIS=DEFAULT_POIS.map(p=>({...p}));
 export const TOWN_BOUNDS={left:1280,right:2336,top:800,bottom:1600};
 export const MOVABLE_IDS=['mart','spring','notice','forge-site','warehouse-site','training-site'];
 export const DECORATIONS={path:{name:'돌길',width:32,height:32},tree:{name:'가로수',width:48,height:64},flowers:{name:'화단',width:32,height:32},bench:{name:'벤치',width:48,height:32},lamp:{name:'가로등',width:24,height:48}};
-export const CAMPS=REGIONS.flatMap(r=>[{id:`${r.id}-camp-a`,zone:r.zone,x:r.x-192,y:r.y+16,radius:80},{id:`${r.id}-camp-b`,zone:r.zone,x:r.x+176,y:r.y+32,radius:80},{id:`${r.id}-camp-c`,zone:r.zone,x:r.x,y:r.y+240,radius:80}]);
 export function segmentDistance(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(x-a.x-t*dx,y-a.y-t*dy);}
 export function roadAt(x,y){return ROADS.find(r=>r.points.slice(1).some((p,i)=>segmentDistance(x,y,r.points[i],p)<=r.width/2));}
 export const coastX=y=>270+Math.sin(y/180)*55+Math.sin(y/71)*18;
@@ -95,3 +94,8 @@ export function validateTown(town){
  for(const [id,p] of Object.entries(town.buildings)){if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||placementError(town,id,p.x,p.y))return false;}
  return town.decorations.every(d=>d&&Object.hasOwn(DECORATIONS,d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)&&d.x>=TOWN_BOUNDS.left&&d.x<=TOWN_BOUNDS.right&&d.y>=TOWN_BOUNDS.top&&d.y<=TOWN_BOUNDS.bottom);
 }
+// Spawn camps cover each act instead of three tight spots near the centre, so packs roam the whole region.
+export const CAMPS=REGIONS.flatMap(r=>{const out=[],spots=[[0,0],[-.55,-.32],[.55,-.32],[-.62,.28],[.62,.28],[0,-.62],[0,.62],[-.32,.62],[.32,-.62],[.36,.6],[-.36,-.6],[-.7,0],[.7,0]];
+ for(const [fx,fy] of spots){const x=Math.round(r.x+fx*r.rx),y=Math.round(r.y+fy*r.ry);if(regionAt(x,y)!==r||roadAt(x,y)||terrainBlocked(x,y)||POIS.some(p=>Math.hypot(p.x-x,p.y-y)<170))continue;out.push({id:`${r.id}-camp-${out.length}`,zone:r.zone,x,y,radius:120});}
+ return out;});
+export const BOSS_LAIR={x:3104,y:1120};

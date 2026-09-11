@@ -74,7 +74,9 @@ export const ZONES = [
   { id: 3, name: '불타는 지옥', en: 'BURNING HELLS', act: 'IV', theme: '용암 · 혼돈의 성채', level: 35, color: '#cc7b66', x: REGIONS[3].x, y: REGIONS[3].y, radius: 380, hp: 1700, atk: 82, xp: 290, gold: 65, material: 'soul', monsters: ['finger', 'megademon', 'knight', 'mother'] }
 ];
 // Names / act distribution: Blizzard's Arreat Summit. Art and tuning are original prototype data.
+export const BOSS_TYPE = 'ashlord';
 export const MONSTERS = {
+  ashlord: { name: '재의 군주 바라칸', en: 'Barakhan, Lord of Cinders', shape: 'boss', color: '#d4683a', trait: 'boss', hp: 14, speed: 24, range: 36 },
   fallen: { name: '폴른', en: 'Fallen', shape: 'imp', color: '#a7644e', trait: 'coward', hp: .8, speed: 30 },
   shaman: { name: '폴른 샤먼', en: 'Fallen Shaman', shape: 'shaman', color: '#c38459', trait: 'revive', hp: .8, speed: 18, range: 85 },
   zombie: { name: '좀비', en: 'Zombie', shape: 'zombie', color: '#87917a', trait: 'tough', hp: 1.5, speed: 12 },
