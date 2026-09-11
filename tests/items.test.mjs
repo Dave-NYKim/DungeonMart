@@ -75,10 +75,10 @@ test('placing items applies stats immediately, respects weight limits and purcha
   assert.equal(rotateItem(s, h, ring.id).ok, false);
   const second = craft(s, 'robe', 'normal').item; assert.ok(autoPlace(s, h, second.id).ok); assert.equal(gearBonus(h, s).act.get(second.id).active, false, '몸 부위 중복은 비활성');
   // 무게: 판금 갑옷 여러 벌은 소서리스 용량(50 + 레벨)을 넘긴다
-  h.placed = []; s.warehouse.push(staff.id, robe.id, ring.id, second.id); h.grid.armor = { w: 6, h: 8 };
+  h.placed = []; s.warehouse.push(staff.id, robe.id, ring.id, second.id); h.grid.armor = { w: 6, h: 8 }; h.level = 10; // 용량 60: 판금 2벌(72~80kg)은 초과 페널티, 3벌은 150% 초과
   const plates = [0, 1, 2].map(() => craft(s, 'plate', 'normal').item);
   assert.ok(autoPlace(s, h, plates[0].id).ok); assert.equal(statsOf(h, s).haste, 0);
-  assert.ok(autoPlace(s, h, plates[1].ok === undefined ? plates[1].id : plates[1].id).ok); assert.ok(statsOf(h, s).load > 1 && statsOf(h, s).haste < 0, '적재 초과 페널티');
+  assert.ok(autoPlace(s, h, plates[1].id).ok); assert.ok(statsOf(h, s).load > 1 && statsOf(h, s).haste < 0, '적재 초과 페널티');
   assert.equal(autoPlace(s, h, plates[2].id).ok, false, '150% 초과는 배치 불가');
 });
 
