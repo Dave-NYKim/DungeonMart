@@ -94,7 +94,7 @@ export const MONSTERS = {
   knight: { name: '오블리비언 나이트', en: 'Oblivion Knight', shape: 'knight', color: '#938b9f', trait: 'curse', hp: 1.1, speed: 21, range: 90 },
   mother: { name: '바일 마더', en: 'Vile Mother', shape: 'hulk', color: '#a28476', trait: 'spawn', hp: 1.7, speed: 12 }
 };
-export const MATERIALS = { iron: { name: '철 조각', color: '#b3b6b4' }, crystal: { name: '마력석', color: '#a69bce' }, soul: { name: '영혼 결정', color: '#cf8b71' } };
+export const MATERIALS = { iron: { name: '철 조각', color: '#b3b6b4' }, crystal: { name: '마력석', color: '#a69bce' }, soul: { name: '영혼 결정', color: '#cf8b71' }, relic: { name: '유물의 정수', color: '#f0c56a' } };
 export const STAT_NAMES = { atk: '공격력', def: '방어력', hp: '최대 체력', crit: '치명타', haste: '공격 속도', leech: '생명력 흡수', spell: '스킬 피해', petdamage: '소환수 피해', cooldown: '재사용 감소' };
 export const classOf = hero => CLASSES.find(c => c.id === hero.classId);
 export const nodesOf = hero => {

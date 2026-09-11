@@ -60,12 +60,12 @@ export const powerOf = (h, s) => Math.round(statsOf(h, s).atk * 4 + statsOf(h, s
 export function makeHero(s, classId, grade = 0) {
   const h = { id: `h${s.nextId++}`, name: names[s.heroes.length] || `용사 ${s.heroes.length + 1}`, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
     hp: 200, shield: 0, x: MART.x + (s.heroes.length % 5 - 2) * 36, y: MART.y + 64, zone: 0, standby: false, state: 'depart', target: null, cooldowns: {}, attackCd: 0, recovery: 0,
-    bag: { iron: 0, crystal: 0, soul: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, grid: rollGrid(classId), placed: [], bagItems: [], reviveCd: 0, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
+    bag: { iron: 0, crystal: 0, soul: 0, relic: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, grid: rollGrid(classId), placed: [], bagItems: [], reviveCd: 0, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
   h.hp = statsOf(h, s).hp;
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -97,7 +97,8 @@ export function spawnEnemy(s, zone, elite = false, variant) {
 // During a boss raid every hero fights in ACT IV and standby is suspended.
 const zoneOf = (s, h) => s.raid ? 3 : h.zone;
 const restingOf = (s, h) => h.standby && !s.raid;
-export const RAID_COST = 500, RAID_DURATION = 240;
+export const RAID_COST = 500, RAID_DURATION = 240, RAID_COOLDOWN = 1200;
+export const raidCooldownLeft = s => Math.max(0, (s.raidReadyAt || 0) - s.time);
 function nearby(s, target, radius = 80) { return s.enemies.filter(e => e.hp > 0 && e.zone === target.zone && dist(e, target) < radius); }
 function heal(s, h, value, source = h) {
   const max = statsOf(h, s).hp, extra = Math.max(0, h.hp + value - max);
@@ -132,7 +133,7 @@ function damage(s, h, e, raw, spell = false, reactive = false) {
   let amount = raw * (h.buffs.rage > 0 ? 1.3 : 1) * (h.buffs.weaken > 0 ? .8 : 1);
   if (spell) amount *= 1 + st.spell;
   if (e.curse > 0) amount *= 1.25 + passiveValue(h, 'expose');
-  if (e.elite) amount *= 1 + passiveValue(h, 'boss');
+  if (e.elite || e.boss) amount *= 1 + passiveValue(h, 'boss');
   if (e.hp < e.maxHp * .35) amount *= 1 + passiveValue(h, 'execute');
   if (!spell && !reactive) {
     amount += st.fire + st.cold + st.lightning;
@@ -169,6 +170,7 @@ function bossBehaviour(s, e, target, targets, dt) {
 export function summonBoss(s) {
   const m = MONSTERS[BOSS_TYPE];
   if (s.raid) return { ok: false, message: `${m.name}이(가) 이미 나타나 있습니다.` };
+  if (raidCooldownLeft(s) > 0) { const left = raidCooldownLeft(s); return { ok: false, message: `봉인문이 아직 닫혀 있습니다. ${Math.ceil(left / 60)}분 후 다시 소환할 수 있습니다.` }; }
   if (s.treasury < RAID_COST) return { ok: false, message: `보스 소환에는 운영금 ${RAID_COST} G가 필요합니다.` };
   if (!s.heroes.some(h => h.state !== 'arrive')) return { ok: false, message: '출전할 수 있는 용사가 없습니다.' };
   s.treasury -= RAID_COST;
@@ -177,7 +179,7 @@ export function summonBoss(s) {
   const e = { id: `e${s.nextId++}`, type: BOSS_TYPE, zone: 3, x: spawn.x, y: spawn.y, hp, maxHp: hp, atk: Math.round(avgHp * .2), elite: false, boss: true, minion: false,
     cd: 2, specialCd: 5, summonCd: 12, contributors: {}, dots: [], slow: 0, stun: 0, curse: 0, fear: 0, taunt: null, summoned: false };
   s.enemies.push(e);
-  s.raid = { bossId: e.id, started: s.time, ends: s.time + RAID_DURATION };
+  s.raid = { bossId: e.id, started: s.time, ends: s.time + RAID_DURATION }; s.raidReadyAt = s.time + RAID_COOLDOWN;
   for (const h of s.heroes) { if (h.state === 'hunt' || h.state === 'depart') { h.state = 'depart'; h.target = null; } else if (h.state === 'recover' && h.hp >= statsOf(h, s).hp) h.state = 'depart'; }
   effect(s, e.x, e.y, '', m.color, 'ring');
   log(s, `혼돈의 봉인문이 열렸다! ${m.name} 출현 · 모든 용사가 ACT IV로 출격합니다.`, 'boss');
@@ -193,6 +195,7 @@ function endRaid(s, outcome, e) {
     for (const p of participants) { p.xp += z.xp * 20; p.gold += z.gold * 25; p.kills++; p.bag.soul += 3; levelUp(s, p); }
     s.treasury += bounty; s.bossKills++;
     log(s, `${m.name} 처치! 현상금 ${bounty} G · 참여 용사 ${participants.length}명 · 영혼 결정 3개씩`, 'boss');
+    if (participants.length) bossLoot(s, e, participants);
   } else log(s, `${m.name}이(가) 봉인문 너머로 물러났습니다. 다음 기회에 다시 도전하세요.`, 'boss');
 }
 function kill(s, h, e) {
@@ -291,7 +294,7 @@ export const warehouseCapacity = s => WAREHOUSE_SIZES[s.upgrades.warehouse || 0]
 export const warehouseUsed = s => s.warehouse.reduce((v, id) => v + (s.items[id] ? s.items[id].w * s.items[id].h : 0), 0);
 export const bagCapacity = (h, s) => Math.floor(6 * (1 + statsOf(h, s).carry));
 const SALVAGE = { normal: { iron: 3 }, magic: { iron: 6, crystal: 1 }, rare: { iron: 10, crystal: 4, soul: 1 }, set: { iron: 15, crystal: 8, soul: 4 }, unique: { iron: 15, crystal: 8, soul: 4 } };
-export function salvageValue(item) { const out = {}; for (const [k, v] of Object.entries(SALVAGE[item.grade])) out[k] = v * item.tier; return out; }
+export function salvageValue(item) { const out = {}; for (const [k, v] of Object.entries(SALVAGE[item.grade])) out[k] = v * item.tier; if (item.grade === 'set' || item.grade === 'unique') out.relic = 1; return out; }
 function destroyItem(s, id) { delete s.items[id]; s.warehouse = s.warehouse.filter(x => x !== id); s.fieldDrops = s.fieldDrops.filter(d => d.id !== id); for (const h of s.heroes) { h.placed = h.placed.filter(p => p.id !== id); h.bagItems = h.bagItems.filter(x => x !== id); } s.itemRev++; }
 function locate(s, id) {
   if (s.warehouse.includes(id)) return { kind: 'warehouse' };
@@ -334,6 +337,35 @@ function dropLoot(s, e, participants) {
     const maxTier = Math.min(6, e.zone + 1 + (e.elite ? 1 : 0)), tier = Math.max(1, maxTier - Math.floor(Math.random() ** 2 * maxTier)), pool = RUNE_LIST.filter(r => r.tier === tier), r = pool[Math.floor(Math.random() * pool.length)];
     s.drawer.runes[r.id] = (s.drawer.runes[r.id] || 0) + 1; log(s, `각인석 ${r.name} 획득`, 'loot');
   }
+}
+// 보스 전리품: 3개, 세트·유니크 확률이 높고 3연속 꽝이면 확정, 첫 처치는 유니크 확정. 전부 빛기둥으로 떨어진다.
+export const BOSS_DROPS = 3, BOSS_PITY = 3;
+function bossLoot(s, e, participants) {
+  const ilvl = Math.min(85, 45 + s.bossKills * 2), findPct = Math.max(...participants.map(p => statsOf(p, s).find));
+  let rare = false;
+  for (let i = 0; i < BOSS_DROPS; i++) {
+    const owner = participants[Math.floor(Math.random() * participants.length)];
+    let grade = rollGrade('boss', findPct, 0);
+    if (i === BOSS_DROPS - 1 && !rare) { if (s.bossKills === 1) grade = 'unique'; else if ((s.bossPity || 0) >= BOSS_PITY - 1) grade = Math.random() < .5 ? 'set' : 'unique'; }
+    const item = registerItem(s, generateItem({ ilvl, grade, kind: 'boss', classId: owner.classId, findPct, codex: s.codex, source: 'boss' }));
+    if (item.grade === 'set' || item.grade === 'unique') rare = true;
+    s.fieldDrops.push({ id: item.id, zone: e.zone, x: Math.round(e.x + (i - 1) * 26), y: Math.round(e.y + 10), expires: s.time + FIELD_DROP_TIME });
+    if (s.fieldDrops.length > MAX_FIELD_DROPS) { const old = s.fieldDrops.shift(); storeItem(s, old.id, '오래된 빛기둥'); }
+    log(s, `${GRADES[item.grade].name} ${item.name} · 보스 전리품 빛기둥`, 'loot');
+  }
+  s.bossPity = rare ? 0 : (s.bossPity || 0) + 1;
+  s.pity = 0;
+}
+// 창고의 같은 등급 장비를 한꺼번에 분해한다. 세트·유니크는 하나씩만.
+export function salvageAll(s, grade) {
+  if (!['normal', 'magic', 'rare'].includes(grade)) return { ok: false, message: '세트·유니크는 하나씩 분해하세요.' };
+  const ids = s.warehouse.filter(id => s.items[id]?.grade === grade);
+  if (!ids.length) return { ok: false, message: `창고에 ${GRADES[grade].name} 장비가 없습니다.` };
+  const gain = {};
+  for (const id of ids) { for (const [k, v] of Object.entries(salvageValue(s.items[id]))) { gain[k] = (gain[k] || 0) + v; s.materials[k] += v; } destroyItem(s, id); }
+  const text = Object.entries(gain).map(([k, v]) => `${({ iron: '철', crystal: '마력석', soul: '영혼 결정', relic: '유물의 정수' })[k]} ${v}`).join(', ');
+  log(s, `${GRADES[grade].name} 장비 ${ids.length}개 분해 · ${text}`, 'info');
+  return { ok: true, message: `${GRADES[grade].name} ${ids.length}개 분해 · ${text}` };
 }
 export function pickupFieldDrop(s, id) {
   const drop = s.fieldDrops.find(d => d.id === id), item = s.items[id];
@@ -553,7 +585,7 @@ export function salvage(s, id) {
   const gain = salvageValue(item);
   for (const [k, v] of Object.entries(gain)) s.materials[k] += v;
   destroyItem(s, id);
-  return { ok: true, message: `${displayName(item)} 분해 · ${Object.entries(gain).map(([k, v]) => `${({ iron: '철', crystal: '마력석', soul: '영혼 결정' })[k]} ${v}`).join(', ')}` };
+  return { ok: true, message: `${displayName(item)} 분해 · ${Object.entries(gain).map(([k, v]) => `${({ iron: '철', crystal: '마력석', soul: '영혼 결정', relic: '유물의 정수' })[k]} ${v}`).join(', ')}` };
 }
 const CRAFT_COST = { normal: { iron: 8 }, magic: { iron: 16, crystal: 3 }, rare: { iron: 28, crystal: 10, soul: 2 } };
 export function craftCost(grade, tier = 1) { const out = {}; for (const [k, v] of Object.entries(CRAFT_COST[grade] || {})) out[k] = Math.round(v * [1, 1, 2.5, 5][tier]); return out; }
@@ -727,7 +759,9 @@ export function restore(raw) {
     if (s.version < VERSION && !migrateItems(s)) return null;
     if (!Array.isArray(s.heroes) || !s.heroes.length || s.heroes.length > MAX_HEROES || !obj(s.items) || Object.keys(s.items).length > 2000 || !Array.isArray(s.warehouse) || !Array.isArray(s.fieldDrops) || !Array.isArray(s.enemies) || s.enemies.length > 150) return null;
     if (!['time','day','treasury','nextId','kills','crafted','sales'].every(k => num(s[k]) && s[k] >= 0) || !Number.isInteger(s.nextId)) return null;
-    if (!nums(s.materials) || !['iron','crystal','soul'].every(k => num(s.materials[k]) && s.materials[k] >= 0)) return null;
+    if (obj(s.materials)) s.materials.relic ??= 0;
+    if (!nums(s.materials) || !['iron','crystal','soul','relic'].every(k => num(s.materials[k]) && s.materials[k] >= 0)) return null;
+    s.raidReadyAt ??= 0; s.bossPity ??= 0; if (!num(s.raidReadyAt) || !num(s.bossPity)) return null;
     s.upgrades.warehouse ??= 0;
     if (!obj(s.upgrades) || !['forge','clinic','warehouse'].every(k => Number.isInteger(s.upgrades[k]) && s.upgrades[k] >= 0 && s.upgrades[k] <= 5)) return null;
     s.pity ??= 0; s.itemRev ??= 0; s.codex ??= { sets: {}, uniques: {}, mantras: {} }; s.drawer ??= { gems: {}, runes: {} };
@@ -750,7 +784,8 @@ export function restore(raw) {
       if (!['weapon','armor','accessory'].every(z => obj(h.grid[z]) && Number.isInteger(h.grid[z].w) && Number.isInteger(h.grid[z].h) && h.grid[z].w >= 1 && h.grid[z].w <= 8 && h.grid[z].h >= 1 && h.grid[z].h <= 8)) return null;
       if (!['hp','xp','gold','x','y','attackCd','recovery','bagKills','kills','shield','skillPoints','soul','attacks'].every(k=>num(h[k])) || h.hp < 0 || h.gold < 0) return null;
       if (!Number.isInteger(h.level) || h.level < 1 || h.level > 60 || !ZONES[h.zone] || !['hunt','depart','return','recover','dead','arrive'].includes(h.state)) return null;
-      if (!['iron','crystal','soul'].every(k=>num(h.bag[k]) && h.bag[k]>=0) || !obj(h.costume) || !['equipment','ash','crimson','forest','midnight'].includes(h.costume.palette)) return null;
+      if (obj(h.bag)) h.bag.relic ??= 0;
+      if (!['iron','crystal','soul','relic'].every(k=>num(h.bag[k]) && h.bag[k]>=0) || !obj(h.costume) || !['equipment','ash','crimson','forest','midnight'].includes(h.costume.palette)) return null;
       if (!Array.isArray(h.pets) || h.pets.length > 12 || !h.pets.every(p=>obj(p) && ['x','y','power','life','cd'].every(k=>num(p[k])) && ['skeleton','golem'].includes(p.kind))) return null;
       const c=classOf(h), second=c.branches.find(b=>b.id===h.path[0]);
       if (h.path.length && !second || h.path.length===2 && !second.children.some(b=>b.id===h.path[1])) return null;

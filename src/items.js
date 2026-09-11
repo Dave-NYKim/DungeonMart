@@ -282,7 +282,7 @@ export function describeStat(key, value) {
 const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
 const between = (min, max, rng) => min + rng() * (max - min);
 const roundStat = (key, v) => STAT_INFO[key]?.[1] === 'pct' || key === 'weightMult' ? Math.round(v * 1000) / 1000 : Math.round(v);
-export const DROP_TABLE = { normal: [.70, .23, .067, .002, .001], elite: [.42, .40, .165, .008, .007], boss: [.20, .45, .30, .03, .02] };
+export const DROP_TABLE = { normal: [.70, .23, .067, .002, .001], elite: [.42, .40, .165, .008, .007], boss: [.15, .35, .25, .15, .10] };
 export function rollGrade(kind, findPct = 0, pity = 0, rng = Math.random) {
   const [n, m, r, st, u] = DROP_TABLE[kind] || DROP_TABLE.normal;
   const bonus = Math.max(0, pity - 300) * .0001, magicUp = Math.min(3, findPct), rareUp = Math.min(3, findPct) * .3;

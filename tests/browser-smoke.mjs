@@ -2,7 +2,9 @@
 // Requires Node 22+; never point this at a personal browser profile.
 import { writeFile, mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const targets=await(await fetch('http://127.0.0.1:9223/json')).json();
+// 여러 세션이 동시에 돌릴 수 있도록 포트는 환경 변수로 바꿀 수 있다: DM_DEVTOOLS(기본 9223), DM_APP(기본 4173)
+const DEVTOOLS=process.env.DM_DEVTOOLS||'9223',APP=process.env.DM_APP||'4173';
+const targets=await(await fetch(`http://127.0.0.1:${DEVTOOLS}/json`)).json();
 const target=targets.find(t=>t.type==='page');
 const ws=new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
@@ -23,7 +25,7 @@ const saved=()=>evaluate(`JSON.parse(localStorage.getItem('dungeon-mart-save-v1'
 async function loadFixture(fixture){const injected=await send('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('dungeon-mart-save-v1',${JSON.stringify(fixture)})`});await send('Page.reload');await until(`document.querySelector('#hero-portrait')`);await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:injected.identifier});await sleep(350);}
 try{
  await send('Runtime.enable');await send('Page.enable');await send('Emulation.setDeviceMetricsOverride',{width:1512,height:982,deviceScaleFactor:1,mobile:false});
- await send('Page.navigate',{url:'http://127.0.0.1:4173'});await until(`document.querySelector('#hero-portrait')`);
+ await send('Page.navigate',{url:`http://127.0.0.1:${APP}`});await until(`document.querySelector('#hero-portrait')`);
  await tap('[data-action="help"]');await tap('[data-action="new-game"]');await tap('[data-action="confirm-new"]');await sleep(400);await tap('[data-action="pause"]');
  assert.equal((await saved()).treasury,0);assert.ok(await evaluate(`document.querySelector('.map-frame #resources')!==null`));
  await tap('[data-action="camera-fit"]');await screenshot('00-overview');assert.ok((await camera()).zoom<.5);
@@ -33,12 +35,13 @@ try{
  await tap('[data-action="camera-home"]');let cam=await camera();
  await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:cam.width/2,y:cam.height/2,deltaX:0,deltaY:-160});await sleep(150);assert.ok((await camera()).zoom>cam.zoom);
  cam=await camera();await send('Input.dispatchMouseEvent',{type:'mousePressed',x:cam.width/2,y:cam.height/2,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:cam.width/2+90,y:cam.height/2+35,buttons:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:cam.width/2+90,y:cam.height/2+35,button:'left',clickCount:1});await sleep(150);assert.ok(Math.abs((await camera()).x-cam.x)>20);
- await tap('[data-action="camera-home"]');await worldTap(1456,970);assert.ok(await evaluate(`document.querySelector('#hero-modal').open && !document.querySelector('#hero-modal #workshop-view').hidden`),'forge opens the equipment tab of the hero popup');await tap('[data-action="close-profile"]');
+ await tap('[data-action="camera-home"]');await worldTap(1456,970);assert.ok(await evaluate(`!document.querySelector('#workshop-view').hidden && !document.querySelector('#hero-modal').open`),'forge opens the town workshop');
  await tap('#nav [data-view="heroes"]');assert.equal(await evaluate(`getComputedStyle(document.querySelector('#hero-list')).gridTemplateColumns.split(' ').length`),3,'roster shows three heroes per row');assert.equal(await evaluate(`document.querySelectorAll('.hero-avatar small').length`),0,'promotion tier badge removed from roster');await tap('.hero-card');assert.ok(await evaluate(`document.querySelector('#hero-modal').open`));
  const before=await evaluate(`document.querySelector('#hero-portrait').toDataURL()`);
- await tap('#profile-tabs [data-tab="equipment"]');assert.ok(await evaluate(`document.querySelectorAll('#hero-modal .grid-zone').length===3`),'three grid zones');
- await evaluate(`(()=>{const c=document.querySelector('#craft-base');const opt=[...c.options].find(o=>o.textContent.includes('✓'));if(opt){c.value=opt.value;c.dispatchEvent(new Event('change',{bubbles:true}));}return true;})()`);await sleep(120);
- await tap('[data-gear="craft"]');await tap('.wh-item [data-gear="auto"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open && document.querySelectorAll('#hero-modal .grid-item').length>=1`),'crafted item placed into the grid inside profile');
+ if(await evaluate(`document.querySelector('#workshop-view').hidden`)){await click('#nav [data-view="workshop"]');await sleep(200);}assert.ok(await evaluate(`!document.querySelector('#workshop-view').hidden`),'workshop view opens from the bottom menu');await evaluate(`(()=>{const c=document.querySelector('#craft-base');const opt=[...c.options].find(o=>o.textContent.includes('✓'));if(opt){c.value=opt.value;c.dispatchEvent(new Event('change',{bubbles:true}));}return true;})()`);await sleep(120);
+ await tap('#workshop-view [data-gear="craft"]');assert.ok(await evaluate(`document.querySelectorAll('#workshop-view .wh-item').length>=1`),'crafted item lands in the workshop warehouse');
+ await tap('#nav [data-view="heroes"]');await tap('.hero-card');await tap('#profile-tabs [data-tab="equipment"]');assert.ok(await evaluate(`document.querySelectorAll('#hero-modal .inventory-region').length===3`),'one inventory with three regions');
+ await tap('#gear-view .wh-item [data-gear="auto"]');assert.ok(await evaluate(`document.querySelector('#hero-modal').open && document.querySelectorAll('#hero-modal .grid-item').length>=1`),'crafted item placed into the inventory inside profile');
  assert.ok(await evaluate(`document.querySelector('#hero-modal .grid-item').getBoundingClientRect().width>0`),'grid item rendered');
  assert.notEqual(await evaluate(`document.querySelector('#hero-portrait').toDataURL()`),before);
  await tap('#profile-tabs [data-tab="overview"]');await tap('[data-action="costume"][data-value="crimson"]');await screenshot('profile-overview');
@@ -69,7 +72,7 @@ try{
  await tap('#nav [data-view="expedition"]');await tap('[data-action="zone"][data-zone="2"]');
  // Drag a hero chip between board columns with real pointer movement.
  const dragChip=async(id,zone)=>{const from=await evaluate(`(()=>{const e=document.querySelector('.zone-hero[data-hero="${id}"]');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);const to=await evaluate(`(()=>{const r=document.querySelector('.zone-column[data-drop-zone="${zone}"] .zone-heroes').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+Math.min(r.height/2,40)};})()`);await send('Input.dispatchMouseEvent',{type:'mouseMoved',...from});await send('Input.dispatchMouseEvent',{type:'mousePressed',...from,button:'left',clickCount:1});for(let i=1;i<=6;i++){await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:from.x+(to.x-from.x)*i/6,y:from.y+(to.y-from.y)*i/6,buttons:1});await sleep(30);}await send('Input.dispatchMouseEvent',{type:'mouseReleased',...to,button:'left',clickCount:1});await sleep(220);};
- assert.equal(await evaluate(`document.querySelectorAll('#nav [data-view]').length`),6,'inventory and promotion leave the bottom menu');
+ assert.equal(await evaluate(`document.querySelectorAll('#nav [data-view]').length`),7,'workshop joins the bottom menu; promotion stays inside the profile');
  const firstHero=(await saved()).heroes[0].id;
  await dragChip(firstHero,-1);assert.equal((await saved()).heroes[0].standby,true,'dropping on the town column parks the hero');assert.equal(await evaluate(`document.querySelector('#hero-modal').open`),false,'a drag does not open the profile');
  assert.ok(await evaluate(`document.querySelector('.zone-column[data-drop-zone="-1"] .zone-hero[data-hero="${firstHero}"]')!==null`),'board moves the chip to the town column');await screenshot('zone-board');
