@@ -135,3 +135,12 @@
 - `pixel-art.js bossSprite`: 이미지가 로드되면 이미지 프레임(1프레임은 몸통 1px 내려앉는 호흡)을, 아니면 기존 코드 스프라이트를 반환. 각 캔버스에 발 기준점 `anchorY` 부여.
 - `render.js`: 보스 그림자·불씨·HP 바·이름 배지 위치를 스프라이트 크기 기준으로 계산. `server.mjs`에 PNG MIME 추가.
 - 검증: `npm test` 40개 통과. 이 기기에 Chromium이 없어 브라우저 화면 확인은 미실시.
+
+## 2026-09-11 · 보스 확대·8방향 시트·암흑 선회 스킬, 레이드 중 소환 버튼 숨김 (Claude, feature/boss-spin)
+
+- 요청: 보스가 너무 작다. 8방향으로 뽑은 시트를 써서 8방향으로 돌며 암흑 마법을 쓰는 스킬. 보스 체력 HUD와 "소환중" 버튼이 겹치니 레이드 중에는 버튼 숨김.
+- `assets/boss.png`: 8셀 256px 시트 전체를 사용. 크림 배경은 가장자리 flood fill + 13px 이상 갇힌 배경색 영역 제거로 투명화, 256→192 면적 평균 축소, 발 정렬. 1536×192 가로 스트립.
+- `pixel-art.js bossSprite(frame, facing)`: 스트립을 정사각 셀로 나눠 방향별 캔버스 캐시. `render.js`: `e.facing`으로 셀 선택, HP 바 폭을 스프라이트 폭의 절반으로, 선회 중 발밑 룬 링, `dark` 이펙트(보라 광선).
+- `engine.js`: `FACING_VECTORS`, `facingTo`, `SPIN`(첫 9초, 쿨 18초, 0.3초×8칸, 사거리 230, 60° 원뿔, 공격력 55%, 약화 3초). 선회 중 보스는 이동·근접 공격 안 함. 저장 필드 `facing`, `spinCd`, `spin` 복원 검증.
+- `app.js renderRaid`: 레이드 중 `#summon-boss` 숨김.
+- 검증: npm test(선회 테스트 추가). 이 기기에 Chromium이 없어 화면 미확인.

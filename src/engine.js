@@ -173,8 +173,35 @@ function damage(s, h, e, raw, spell = false, reactive = false) {
     hurtHero(s, h, e.atk * .6, null);
   }
 }
+// Boss facings match the sprite strip: S, SW, W, NW, N, NE, E, SE (screen y grows downward).
+export const FACING_VECTORS = [[0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1]].map(([x, y]) => { const l = Math.hypot(x, y); return [x / l, y / l]; });
+export function facingTo(from, to) { const a = Math.atan2(to.y - from.y, to.x - from.x) - Math.PI / 2; return ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8; }
+export const SPIN = { first: 9, cooldown: 18, step: .3, range: 230, cone: Math.cos(Math.PI / 6), damage: .55, weaken: 3 };
+// Dark spin: the boss turns through all eight facings, loosing a shadow beam each step. Heroes
+// inside the beam's 60° cone take dark damage and are weakened.
+function darkBeam(s, e, facing) {
+  const [dx, dy] = FACING_VECTORS[facing], oy = e.y - 30;
+  for (const h of s.heroes) {
+    if (h.state !== 'hunt' || zoneOf(s, h) !== e.zone) continue;
+    const rx = h.x - e.x, ry = h.y - e.y, d = Math.hypot(rx, ry);
+    if (d <= 0 || d > SPIN.range || (rx * dx + ry * dy) / d < SPIN.cone) continue;
+    hurtHero(s, h, e.atk * SPIN.damage, e, null); h.buffs.weaken = Math.max(h.buffs.weaken || 0, SPIN.weaken);
+  }
+  effect(s, e.x, oy, '', '#a56cff', 'dark', { x: e.x + dx * SPIN.range, y: oy + dy * SPIN.range });
+}
 function bossBehaviour(s, e, target, targets, dt) {
-  e.summonCd = (e.summonCd ?? 12) - dt;
+  e.summonCd = (e.summonCd ?? 12) - dt; e.spinCd = (e.spinCd ?? SPIN.first) - dt;
+  if (e.spin) {
+    const step = Math.min(7, Math.floor((s.time - e.spin.started) / SPIN.step));
+    while (e.spin.step < step) { e.spin.step++; e.facing = e.spin.step; darkBeam(s, e, e.facing); }
+    if (s.time - e.spin.started >= SPIN.step * 8) { e.spin = null; e.facing = facingTo(e, target); }
+    return;
+  }
+  e.facing = facingTo(e, target);
+  if (e.spinCd <= 0) {
+    e.spinCd = SPIN.cooldown; e.spin = { started: s.time, step: -1 };
+    effect(s, e.x, e.y - 40, '암흑 선회', '#c9a0ff'); bossBehaviour(s, e, target, targets, 0); return;
+  }
   if (e.specialCd <= 0) {
     e.specialCd = 7;
     for (const h of s.heroes) if (h.state === 'hunt' && dist(h, e) < 110) hurtHero(s, h, e.atk * .7, null);
@@ -197,7 +224,7 @@ export function summonBoss(s) {
   const party = s.heroes.reduce((v, h) => v + powerOf(h, s), 0), avgHp = s.heroes.reduce((v, h) => v + statsOf(h, s).hp, 0) / s.heroes.length;
   const D = difficultyOf(s), spawn = nearestWalkable(BOSS_LAIR), hp = Math.round(Math.max(3000, party * 14) * D.boss);
   const e = { id: `e${s.nextId++}`, type: BOSS_TYPE, zone: 3, x: spawn.x, y: spawn.y, hp, maxHp: hp, atk: Math.round(avgHp * .2 * (1 + (D.boss - 1) * .6)), elite: false, boss: true, minion: false,
-    cd: 2, specialCd: 5, summonCd: 12, contributors: {}, dots: [], slow: 0, stun: 0, curse: 0, fear: 0, taunt: null, summoned: false };
+    cd: 2, specialCd: 5, summonCd: 12, spinCd: SPIN.first, spin: null, facing: 0, contributors: {}, dots: [], slow: 0, stun: 0, curse: 0, fear: 0, taunt: null, summoned: false };
   s.enemies.push(e);
   s.raid = { bossId: e.id, started: s.time, ends: s.time + RAID_DURATION }; s.raidReadyAt = s.time + RAID_COOLDOWN;
   for (const h of s.heroes) { if (h.state === 'hunt' || h.state === 'depart') { h.state = 'depart'; h.target = null; } else if (h.state === 'recover' && h.hp >= statsOf(h, s).hp) h.state = 'depart'; }
@@ -511,6 +538,7 @@ export function tick(s, dt) {
     let target = targets.find(h => h.id === e.taunt) || targets.sort((a, b) => dist(a, e) - dist(b, e))[0];
     if (!target) continue;
     if (e.fear > 0 && !e.boss) { move(e, ZONES[e.zone], m.speed, dt); continue; }
+    if (e.boss && e.spin) { bossBehaviour(s, e, target, targets, dt); continue; }
     const distance = dist(e, target);
     if (distance > (m.range || 23)) move(e, target, m.speed * (e.slow ? .45 : 1), dt);
     e.cd -= dt; e.specialCd -= dt;
@@ -844,7 +872,7 @@ export function restore(raw) {
       if (!obj(e) || !MONSTERS[e.type] || !ZONES[e.zone] || !/^e\d+$/.test(e.id) || !nums(e.contributors)) return null;
       if (!['hp','maxHp','atk','x','y','cd','specialCd','slow','stun','curse','fear'].every(k=>num(e[k])) || !Array.isArray(e.dots)) return null;
       if (!e.dots.every(d=>obj(d) && ['damage','life','tick'].every(k=>num(d[k])) && typeof d.heroId==='string')) return null;
-      e.boss = e.boss === true; e.minion = e.minion === true; if (!Number.isInteger(e.tier) || !DIFFICULTIES[e.tier]) e.tier = 0; if (e.boss && !num(e.summonCd)) e.summonCd = 12;
+      e.boss = e.boss === true; e.minion = e.minion === true; if (!Number.isInteger(e.tier) || !DIFFICULTIES[e.tier]) e.tier = 0; if (e.boss) { if (!num(e.summonCd)) e.summonCd = 12; if (!num(e.spinCd)) e.spinCd = SPIN.first; if (!Number.isInteger(e.facing) || e.facing < 0 || e.facing > 7) e.facing = 0; if (e.spin != null && !(obj(e.spin) && num(e.spin.started) && Number.isInteger(e.spin.step))) e.spin = null; }
     }
     if (s.raid && !s.enemies.some(e => e.boss && e.id === s.raid.bossId && e.hp > 0)) s.raid = null;
     if (!s.raid) s.enemies = s.enemies.filter(e => !e.boss && !e.minion);

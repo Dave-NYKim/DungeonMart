@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf, DIFFICULTIES } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK } from '../src/engine.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, SPIN, facingTo, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK } from '../src/engine.js';
 import { BASES, effectiveGrid } from '../src/items.js';
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
@@ -86,6 +86,21 @@ test('town standby parks a hero at the mart until reassigned and survives saves'
   const legacy=JSON.parse(serialize(s));for(const x of legacy.heroes)delete x.standby;assert.equal(restore(JSON.stringify(legacy)).heroes[0].standby,false);
   assert.ok(assignZone(s,h,0).ok);assert.equal(h.standby,false);assert.equal(h.state,'depart');
   for(let i=0;i<50;i++)tick(s,.1);assert.notEqual(h.state,'recover');
+});
+test('boss dark spin turns through all eight facings and beams heroes standing in each direction',()=>{
+  const s=createGame();s.treasury=10000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
+  const boss=summonBoss(s).boss;boss.hp=boss.maxHp=5e6;boss.cd=boss.specialCd=boss.summonCd=99;
+  assert.equal(facingTo({x:0,y:0},{x:0,y:10}),0);assert.equal(facingTo({x:0,y:0},{x:-10,y:0}),2);assert.equal(facingTo({x:0,y:0},{x:0,y:-10}),4);assert.equal(facingTo({x:0,y:0},{x:10,y:0}),6);assert.equal(facingTo({x:0,y:0},{x:10,y:10}),7);
+  const south=s.heroes[0],east=s.heroes[1],far=s.heroes[2];
+  for(const [h,dx,dy] of [[south,0,120],[east,120,0],[far,0,SPIN.range+80]]){h.state='hunt';h.x=boss.x+dx;h.y=boss.y+dy;h.hp=statsOf(h,s).hp;}
+  boss.spinCd=0;tick(s,.05);
+  assert.ok(boss.spin,'spin starts when its cooldown expires');assert.equal(boss.facing,0);assert.ok(south.hp<statsOf(south,s).hp,'the south beam hits the hero standing south');
+  assert.equal(east.hp,statsOf(east,s).hp,'the east hero is untouched by the south beam');assert.ok(south.buffs.weaken>0,'dark magic weakens');
+  const seen=new Set([boss.facing]),eastHp=east.hp;for(let i=0;i<60&&boss.spin;i++){tick(s,.05);seen.add(boss.facing);}
+  assert.equal(boss.spin,null,'spin ends after eight steps');assert.deepEqual([...seen].sort(),[0,1,2,3,4,5,6,7]);assert.ok(east.hp<eastHp,'the east beam hits the east hero');
+  assert.equal(far.hp,statsOf(far,s).hp,'heroes beyond the beam range are safe');assert.ok(boss.spinCd>SPIN.cooldown-5,'cooldown restarts');
+  const loaded=restore(serialize(s)),lb=loaded.enemies.find(e=>e.boss);assert.ok(Number.isInteger(lb.facing)&&lb.spin===null);
+  const broken=JSON.parse(serialize(s));const bb=broken.enemies.find(e=>e.boss);bb.facing=42;bb.spin={bogus:true};const fixed=restore(JSON.stringify(broken)).enemies.find(e=>e.boss);assert.equal(fixed.facing,0);assert.equal(fixed.spin,null);
 });
 test('boss summon pulls every hero into ACT IV, rewards the party on the kill and restores assignments',()=>{
   const s=createGame();s.treasury=10000;s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);

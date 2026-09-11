@@ -193,7 +193,7 @@ function renderUI(force=false){
 }
 function renderRaid(){
   const b=state.raid&&state.enemies.find(e=>e.id===state.raid.bossId),hud=$('boss-hud'),button=$('summon-boss');
-  const cd=raidCooldownLeft(state);button.disabled=!!state.raid||cd>0;button.classList.toggle('active',!!state.raid);button.classList.toggle('cooldown',!state.raid&&cd>0);button.textContent=state.raid?'보스 전투 중':cd>0?`보스 소환 · ${clock(cd)} 후`:`보스 소환 · ${RAID_COST} G`;
+  const cd=raidCooldownLeft(state);button.hidden=!!state.raid;button.disabled=!!state.raid||cd>0;button.classList.toggle('active',!!state.raid);button.classList.toggle('cooldown',!state.raid&&cd>0);button.textContent=state.raid?'보스 전투 중':cd>0?`보스 소환 · ${clock(cd)} 후`:`보스 소환 · ${RAID_COST} G`;
   const zonesHTML=[`<button class="zone-shortcut" data-action="camera-home" title="마을로 이동 (H)">${icon('shop')}<small>마을</small></button>`,...ZONES.map(z=>`<button class="zone-shortcut ${availableZone(state,z.id)?'':'locked'} ${selectedZone===z.id?'active':''}" data-action="camera-zone" data-zone="${z.id}" title="${z.name}${availableZone(state,z.id)?'':' · Lv.'+z.level+' 해금'}">${icon(availableZone(state,z.id)?'map':'lock')}<small>ACT ${z.act}</small></button>`)].join('');
   const zs=$('zone-shortcuts');if(zs&&zs._markup!==zonesHTML){zs._markup=zonesHTML;zs.innerHTML=zonesHTML;}
   if(!b){hud.hidden=true;hud._markup='';return;}
