@@ -133,7 +133,7 @@ export function installGearUI(host, ctx) {
   });
   document.addEventListener('pointermove', e => {
     if (!drag) return;
-    if (!drag.moved) { if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return; drag.moved = true; const item = S().items[drag.id], d = dims({ ...item, rotated: drag.rotated }); drag.ghost = document.createElement('div'); drag.ghost.className = 'drag-ghost-item'; drag.ghost.style.setProperty('--w', d.w); drag.ghost.style.setProperty('--h', d.h); drag.ghost.style.setProperty('--item-color', gradeColor(item)); drag.ghost.innerHTML = `<span class="grid-icon">${ctx.icon(iconFor(item))}</span>`; document.body.append(drag.ghost); drag.el.classList.add('dragging'); document.body.classList.add('gear-dragging'); }
+    if (!drag.moved) { if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return; drag.moved = true; const item = S().items[drag.id], d = dims({ ...item, rotated: drag.rotated }); drag.ghost = document.createElement('div'); drag.ghost.className = 'drag-ghost-item'; drag.ghost.style.setProperty('--w', d.w); drag.ghost.style.setProperty('--h', d.h); drag.ghost.style.setProperty('--item-color', gradeColor(item)); drag.ghost.innerHTML = `<span class="grid-icon">${ctx.icon(iconFor(item))}</span>`; (host.closest('dialog') || document.body).append(drag.ghost); drag.el.classList.add('dragging'); document.body.classList.add('gear-dragging'); }
     drag.ghost.style.transform = `translate(${e.clientX - 14}px,${e.clientY - 14}px)`;
     drag.target = markTarget(e); e.preventDefault();
   });
