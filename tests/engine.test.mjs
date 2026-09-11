@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart } from '../src/engine.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy } from '../src/engine.js';
 import { BASES, effectiveGrid } from '../src/items.js';
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
-import { MART } from '../src/world.js';
+import { MART, CAMPS, REGIONS, regionAt } from '../src/world.js';
 const rich = () => {const s=createGame();s.materials={iron:10000,crystal:10000,soul:10000};s.treasury=10000;return s;};
 test('automatic hunting yields XP, personal gold, shared materials and return trips',()=>{
   const s=createGame();for(let i=0;i<3000;i++)tick(s,.1);
@@ -86,4 +86,26 @@ test('town standby parks a hero at the mart until reassigned and survives saves'
   const legacy=JSON.parse(serialize(s));for(const x of legacy.heroes)delete x.standby;assert.equal(restore(JSON.stringify(legacy)).heroes[0].standby,false);
   assert.ok(assignZone(s,h,0).ok);assert.equal(h.standby,false);assert.equal(h.state,'depart');
   for(let i=0;i<50;i++)tick(s,.1);assert.notEqual(h.state,'recover');
+});
+test('boss summon pulls every hero into ACT IV, rewards the party on the kill and restores assignments',()=>{
+  const s=createGame();s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);
+  for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
+  const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);r.boss.hp=r.boss.maxHp=5e6;assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.ok(regionAt(r.boss.x,r.boss.y)?.zone===3);
+  assert.equal(summonBoss(s).ok,false);
+  for(let i=0;i<900;i++)tick(s,.1);
+  const boss=s.enemies.find(e=>e.boss);assert.ok(boss,'boss persists until killed or timed out');
+  assert.ok(s.heroes.every(h=>h.state!=='hunt'||Math.hypot(h.x-boss.x,h.y-boss.y)<400),'hunting heroes stay on the boss');assert.ok(Object.keys(boss.contributors).length>=3,'most of the party has engaged the boss');
+  assert.ok(boss.hp<boss.maxHp,'the party damages the boss');assert.ok(s.heroes.some(h=>boss.contributors[h.id]>0));
+  const loaded=restore(serialize(s));assert.ok(loaded.raid&&loaded.enemies.some(e=>e.boss),'raid survives a save round trip');
+  boss.hp=1;const striker=s.heroes.find(h=>h.state==='hunt')||s.heroes[0];boss.contributors[striker.id]=1;const gold=striker.gold,soul=striker.bag.soul;
+  for(let i=0;i<300&&s.raid;i++)tick(s,.1);
+  assert.equal(s.raid,null);assert.equal(s.bossKills,1);assert.ok(!s.enemies.some(e=>e.boss||e.minion));assert.ok(striker.gold>gold&&striker.bag.soul>=soul+3);
+  assert.equal(s.heroes[1].zone,1);assert.equal(s.heroes[2].standby,true);
+  const t=createGame();summonBoss(t);t.time=RAID_DURATION+5;tick(t,.1);assert.equal(t.raid,null,'timeout ends the raid');assert.ok(!t.enemies.some(e=>e.boss));
+  const broken=JSON.parse(serialize(s));broken.raid={bossId:'e999',started:0,ends:10};assert.equal(restore(JSON.stringify(broken)).raid,null,'raid without a boss is dropped');
+});
+test('spawn camps cover each act instead of one cluster',()=>{
+  for(const r of REGIONS){const camps=CAMPS.filter(c=>c.zone===r.zone);assert.ok(camps.length>=6,r.id);assert.ok(camps.every(c=>regionAt(c.x,c.y)===r));
+    const xs=camps.map(c=>c.x),ys=camps.map(c=>c.y);assert.ok(Math.max(...xs)-Math.min(...xs)>r.rx&&Math.max(...ys)-Math.min(...ys)>r.ry*.9,r.id+' spread');}
+  const s=createGame();for(let i=0;i<60;i++)spawnEnemy(s,0);const xs=s.enemies.map(e=>e.x);assert.ok(Math.max(...xs)-Math.min(...xs)>600,'packs spawn across the act');
 });

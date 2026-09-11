@@ -80,6 +80,13 @@
 - 문서 반영: docs/EQUIPMENT_DESIGN.md 4장 드롭 확률·소프트 천장, 4.1 빛기둥/클릭/자동 입고/저장 구조, 7장 직업 세트 5종 6부위 + 단계 성장, 13·14·15·17·18장 출처·저장·코드 매핑 갱신. 공용 세트 4종 삭제, 상인·도박에서 세트·유니크 제거.
 - 구현 없음. 저장소 첫 커밋 생성.
 
+## 2026-09-11 · 보스 레이드, 몬스터 분산 스폰, 지옥 지형 정리, 클릭형 전직 트리 (Claude)
+
+- 요청: 보스 소환 버튼 → ACT IV에 악마 출현, 전체 용사가 이동해 공동 처치, 디아블로를 따라하지 않은 자체 픽셀 디자인. 몬스터가 액트 한곳에만 몰리는 문제. 불타는 지옥의 뭉친 생성물 제거. 전직을 디아 2 스킬 트리 느낌의 트리로, 클릭 즉시 전직.
+- 구현: 엔진 `summonBoss`/`s.raid`(500 G, 240초 제한, 잿불 폭발·부하 소환, 승리 시 현상금 2,000 G·영혼 결정 3·XP/골드), 레이드 중 전 용사 ACT IV 집결 후 원래 배정 복귀. 원본 보스 스프라이트 64×72 2프레임, 보스 HUD·이름 배지·미니맵 마커. 스폰 캠프를 액트당 7~10곳으로 분산. 지옥 무작위 용암 줄무늬 제거·소품 감소·팔레트 저대비. `.d2-tree` 트리 UI와 `tree-node` 클릭 전직.
+- 변경 파일: src/engine.js, src/data.js, src/world.js, src/world-art.js, src/pixel-art.js, src/render.js, src/app.js, index.html, style.css, tests/engine.test.mjs, tests/browser-smoke.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
+- 검증: npm test 31개 통과. 격리 헤드리스 Whale에서 browser-smoke 통과(트리 클릭 전직, 보스 소환 HUD/저장). 레벨 40 파티 실전에서 74초 처치 확인.
+
 ## 2026-09-11 · 장비 시스템 v2 구현 (feature/equipment-v2)
 
 - 요청: 설계(docs/EQUIPMENT_DESIGN.md)대로 구현. 커밋하면서 진행.

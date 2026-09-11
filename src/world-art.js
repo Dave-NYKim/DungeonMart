@@ -1,6 +1,6 @@
 import { WORLD, HUB, REGIONS, ROADS, POIS, contains, regionAt, roadAt, segmentDistance, solidAt, HARBOR, RESERVE, coastX, riverX, terrainBlocked } from './world.js';
 import { canvasOf, rect, oval, poly, stroke, panel, pixelText, treeSprite, stoneSprite, martSprite, scale2x } from './pixel-art.js';
-const tiles={coast:['#889875','#92a282','#a1ab88','#889c82'],reserve:['#68766b','#728071','#7a8678','#627369'],hub:['#607148','#667950','#718158','#5d7049'],grass:['#607547','#657c4b','#6c8050','#718754'],sand:['#b59b69','#bda575','#c2aa7a','#c6ad7f'],jungle:['#355d48','#3b684d','#446e53','#4b7456'],hell:['#473a3d','#514040','#57433d','#5d4942']};
+const tiles={coast:['#889875','#92a282','#a1ab88','#889c82'],reserve:['#68766b','#728071','#7a8678','#627369'],hub:['#607148','#667950','#718158','#5d7049'],grass:['#607547','#657c4b','#6c8050','#718754'],sand:['#b59b69','#bda575','#c2aa7a','#c6ad7f'],jungle:['#355d48','#3b684d','#446e53','#4b7456'],hell:['#4d3f40','#513f40','#554341','#574643']};
 export function poiSprite(p){
  if(p.type==='mart')return martSprite();
  const w=Math.ceil(p.width/2),h=Math.ceil(p.height/2)+8,canvas=canvasOf(w,h),c=canvas.getContext('2d'),r=(x,y,ww,hh,col)=>rect(c,x,y,ww,hh,col);
@@ -79,7 +79,7 @@ function buildTerrain(){
   const wx=x+4,wy=y+4,region=regionAt(wx,wy),road=roadAt(wx,wy);
   if(!region){rect(c,x,y,8,8,rnd()<.5?'#2c4c52':'#304f55');if(rnd()<.12)rect(c,x+rnd()*3,y+2+rnd()*5,4+rnd()*3,1,'#58716e');continue;}
   // Dithered transitions weave adjacent biomes together without hard tile borders.
-  const mixed=regionAt(wx+(rnd()-.5)*110,wy+(rnd()-.5)*110)||region,colors=tiles[mixed.biome];
+  const jitter=region.biome==='hell'?56:110,mixed=regionAt(wx+(rnd()-.5)*jitter,wy+(rnd()-.5)*jitter)||region,colors=tiles[mixed.biome];
   rect(c,x,y,8,8,colors[Math.floor(rnd()*4)]);
   if(wx<coastX(wy)+38){rect(c,x,y,8,8,'#b7b591');if(rnd()<.5)rect(c,x+rnd()*4,y+6,4,1,'#d3c9a1');}
   else if(road){const paved=region===HUB||region===HARBOR;rect(c,x,y,8,8,paved?['#a9a27d','#b7ac85','#bfb58e'][Math.floor(rnd()*3)]:region.biome==='sand'?'#c5b181':'#9b9570');if(paved){rect(c,x,y,7,1,'#d4c397');rect(c,x+7,y+2,1,6,'#858162');}else if(rnd()<.35)rect(c,x+rnd()*6,y+rnd()*7,2,1,region.biome==='sand'?'#b8a578':'#8a8563');}
@@ -101,8 +101,8 @@ function buildTerrain(){
   }
   if(r===RESERVE){add(stones.rock,x,y);if(i%3===0)add(trees.oak,x+16,y+22);continue;}
   if(r.biome==='hell'){
-   if(i%4===0)add(trees.dead,x,y);else if(i%3===0)add(stones.rock,x,y);
-   if(i%7===0){stroke(c,x,y,x+18,y+32,'#843f32',9);stroke(c,x+1,y+1,x+18,y+32,'#e7a056',4);}continue;
+   // Sparse, no random lava streaks: the volcanic floor stays readable around the sealed gate.
+   if(rnd()<.62)continue;if(i%4===0)add(trees.dead,x,y);else if(i%3===0)add(stones.rock,x,y);continue;
   }
   add(rnd()<.85?trees[r.biome==='jungle'?'palm':'oak']:stones.rock,x,y);
   if(r.zone===0&&i%13===0)add(stones.grave,x+30,y+15);
