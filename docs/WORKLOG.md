@@ -106,3 +106,11 @@
 - 구현: 엔진 `s.yield`(120초 창 이동평균), `settleOffline`(60% 효율, 최대 8시간, 1분 미만·레이드 중 제외, 재료만). 앱은 로드 시 `savedAt`, 탭 복귀 시 `hiddenAt` 기준으로 정산하고 모달로 안내. 구 저장은 rate 0에서 시작.
 - 변경 파일: src/engine.js, src/app.js, tests/engine.test.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
 - 검증: npm test 40개 통과, 격리 브라우저에서 모달/재료 증가/중복 지급 없음 확인, browser-smoke 통과.
+
+## 2026-09-11 · 보스 스프라이트를 PixelLab 이미지로 교체 (Claude, feature/boss-sprite)
+
+- 요청: PixelLab에서 만든 `pixellab-cute-wizard-1789113682677.png`(768×768, 256×256 셀 8방향 시트)로 보스 몬스터 교체.
+- 정면 셀(유일하게 배경이 투명한 셀)만 잘라 2×2 평균 축소한 125×123 PNG를 `assets/boss.png`로 추가. 나머지 7방향 셀은 크림색 배경이 박혀 있어 사용하지 않음.
+- `pixel-art.js bossSprite`: 이미지가 로드되면 이미지 프레임(1프레임은 몸통 1px 내려앉는 호흡)을, 아니면 기존 코드 스프라이트를 반환. 각 캔버스에 발 기준점 `anchorY` 부여.
+- `render.js`: 보스 그림자·불씨·HP 바·이름 배지 위치를 스프라이트 크기 기준으로 계산. `server.mjs`에 PNG MIME 추가.
+- 검증: `npm test` 40개 통과. 이 기기에 Chromium이 없어 브라우저 화면 확인은 미실시.
