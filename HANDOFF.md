@@ -10,6 +10,17 @@
 - 마을 시설 위치를 옮기고 장식하는 기능. 용사 팝업 안에서 장비/전직/스킬/사냥 배정/기록을 보고 조작. 용사 따라가기. 용사 개성과 스킬 아이콘. 미전직 스킬도 효과 미리보기.
 - AGENTS.md 준수: 추가 패키지 없는 로컬 웹 게임, 저장 보존/마이그레이션, 완료 때 이 파일과 docs/WORKLOG.md 갱신. 이미지 외부 복제 없음. 코드로 직접 그린 픽셀 아트 및 SVG 아이콘.
 
+## 2026-09-11 · Claude 4차 작업 (오프라인 재료 보상)
+
+요청: 게임을 꺼 둬도 재료를 알아서 모아 오는 오프라인 보상. 사용자가 제안한 "실제 시뮬레이션 대신 측정 수익률로 정산" 방식을 승인.
+
+- 엔진 `s.yield={rate,acc,since}`: `deposit`(귀환 입고)마다 `acc`에 재료를 더하고, `tick`의 `rollYield`가 게임 시간 120초마다 분당 획득량을 `rate = rate*.6 + 측정치*.4`로 갱신. 마을 대기·레이드 등 실제 입고가 없으면 자연 감소. 새 게임은 rate 0이라 2분 이상 플레이해야 정산이 시작된다.
+- `settleOffline(s, since, now)`: 경과 초를 `OFFLINE.capSeconds`(8시간)로 캡, 60초 미만·레이드 중·미측정(모두 0)이면 null. 지급 = floor(rate × 분 × 0.6). 재료(철·마력석·영혼)만, 골드/경험치 없음. 로그 타입 `loot`. 반환 `{seconds,gained,capped}`.
+- 앱: 로드 시 `state.savedAt`(serialize가 기록) 기준으로 정산 후 즉시 저장 → 모달 "오프라인 보상"(재료별 +, 분당 수익률, 효율). 탭을 숨겼다가 돌아오면 `hiddenAt` 기준으로 같은 정산(숨긴 동안 시뮬레이션이 멈추는 것을 보정). 안내 모달 문구 갱신.
+- 저장: `yield` 필드 추가(version 2 유지). 없거나 잘못되면 fresh로 초기화. `savedAt`은 숫자가 아니면 제거.
+- 검증: `npm test` 40개 통과(측정→정산→캡→1분 미만→레이드 중→구 저장 복원). 격리 브라우저에서 2시간 5분 전 저장 fixture로 모달·재료 증가·재로드 시 중복 없음 확인(`/tmp/dungeonmart-review/offline-modal.png`).
+- 조정 포인트: `OFFLINE.efficiency`(0.6), `capSeconds`, `minSeconds`, `window`. 남은 아이디어: 골드/경험치 확장, 오프라인 중 장비 드랍은 미지원.
+
 ## 2026-09-11 · Claude 3차 작업 (보스 소환 · 몬스터 분산 · 지옥 정리 · 전직 트리)
 
 요청 원문 요약: (1) "보스 소환"을 누르면 ACT IV에 악마가 나오고 전체 용사가 이동해 다같이 잡기. 디자인은 디아블로를 따라하지 말고 직접 픽셀로. (2) 몬스터가 액트 한곳에만 몰려 나오는 문제. (3) 불타는 지옥에 픽셀이 뭉쳐 보이는 생성물 제거. (4) 전직 UI를 디아 2 스킬 트리 느낌의 트리 모양으로, 그냥 클릭하면 전직되게.
@@ -29,6 +40,7 @@
 
 ### 불타는 지옥 정리
 - 무작위 용암 줄무늬(`i%7` stroke) 제거, 고사목/바위 밀도 약 40%로 감소, 지옥 타일 팔레트 저대비화, 인접 지형 디더링 폭 축소(56). 봉인문 앞이 읽기 쉬워졌다. 대형 용암 균열 13개(충돌)는 유지.
+- 이후 대형 용암 균열도 제거(2026-09-11). 획 13개가 x 3px 간격으로 겹쳐 세로 막대처럼 뭉쳐 보였음. `world-art.js`의 stroke 루프와 `world.js terrainBlocked`의 균열 충돌 사각형을 함께 삭제. 액트 IV 지형 충돌은 이제 미개척 산악(RESERVE)뿐.
 
 ### 전직 트리 (클릭 즉시 전직)
 - `renderSkills`: `.d2-tree`(ul/li CSS 커넥터, 금색 선) 1차 → 2차 2개 → 3차 4개 노드. 노드 아이콘은 계열 첫 스킬 아이콘. 상태 `chosen/eligible/waiting/other`, 선택 노드 `focus`.
@@ -138,7 +150,7 @@
 ## 실행·검증
 
 - `/Users/nykim/Code/00.Project/DungeonMart`에서 `npm start` → http://localhost:4173. 추가 패키지 없음, Node 22+.
-- `npm test`: **31개 통과**. 기존 경제/전직/장비/저장, 자연 지형/경로, 해상 입항, 건물 이동/충돌/귀환 목표/되돌리기/장식, 구 저장 보존, 읽기 전용 불러오기, 100개 스킬 목록 검증.
+- `npm test`: **40개 통과**. 기존 경제/전직/장비/저장, 자연 지형/경로, 해상 입항, 건물 이동/충돌/귀환 목표/되돌리기/장식, 구 저장 보존, 읽기 전용 불러오기, 100개 스킬 목록 검증.
 - `node tests/browser-smoke.mjs`: **격리된 Whale DevTools 9223 전용**, 이 프로필 저장을 초기화. 개인 브라우저에 연결 금지. 헤드리스 실행 예: `/Applications/Whale.app/Contents/MacOS/Whale --headless=new --remote-debugging-port=9223 --user-data-dir=/tmp/whale-test --no-first-run --disable-gpu --window-size=1512,982 about:blank` (서버 `npm start` 필요).
 - 브라우저 테스트를 실제 화면에 보이는 컨트롤의 포인터 클릭으로 개편. 통과: 4개 액트/줌/팬/모바일 핀치, 팝업 내부 장비·전직·스킬, 미습득 미리보기/정지/재생, 모든 100개 VFX 그리기, 움직이는 용사 추적, 실제 지도 좌표로 마트 이동/화단·길 배치/undo/새로고침 복원, 항구 영입, 젠 배수 길게 누르기, 구 저장 migration, PC·모바일 넘침/모바일 미리보기 노출.
 - 스크린샷 `/tmp/dungeonmart-review/`: `final-continent.png`, `act-1.png`~`act-4.png`, `town-moved.png`, `harbor-arrival.png`, `profile-overview.png`, `profile-skill-tree.png`, `preview-meteor.png`, `mobile-skills.png`, `mobile-town.png` 등.

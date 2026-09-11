@@ -65,7 +65,7 @@ export function makeHero(s, classId, grade = 0) {
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -346,7 +346,7 @@ function bossLoot(s, e, participants) {
   for (let i = 0; i < BOSS_DROPS; i++) {
     const owner = participants[Math.floor(Math.random() * participants.length)];
     let grade = rollGrade('boss', findPct, 0);
-    if (i === BOSS_DROPS - 1 && !rare) { if (s.bossKills === 1) grade = 'unique'; else if ((s.bossPity || 0) >= BOSS_PITY - 1) grade = Math.random() < .5 ? 'set' : 'unique'; }
+    if (i === BOSS_DROPS - 1) { if (s.bossKills === 1) grade = 'unique'; else if (!rare && (s.bossPity || 0) >= BOSS_PITY - 1) grade = Math.random() < .5 ? 'set' : 'unique'; }
     const item = registerItem(s, generateItem({ ilvl, grade, kind: 'boss', classId: owner.classId, findPct, codex: s.codex, source: 'boss' }));
     if (item.grade === 'set' || item.grade === 'unique') rare = true;
     s.fieldDrops.push({ id: item.id, zone: e.zone, x: Math.round(e.x + (i - 1) * 26), y: Math.round(e.y + 10), expires: s.time + FIELD_DROP_TIME });
@@ -376,9 +376,31 @@ export function pickupFieldDrop(s, id) {
   log(s, `${GRADES[item.grade].name} ${item.name} 획득 · 창고 입고`, 'loot');
   return { ok: true, message: stored ? `${item.name} 획득! 창고에 보관했습니다.` : '창고가 가득 차 자동 분해되었습니다.', item };
 }
+// Offline income is estimated from what heroes actually bring home while the game runs.
+export const OFFLINE = { efficiency: .6, capSeconds: 8 * 3600, minSeconds: 60, window: 120 };
+const MATERIAL_KEYS = ['iron', 'crystal', 'soul'];
+function freshYield(time) { return { rate: { iron: 0, crystal: 0, soul: 0 }, acc: { iron: 0, crystal: 0, soul: 0 }, since: time }; }
+function rollYield(s) {
+  const y = s.yield, minutes = (s.time - y.since) / 60;
+  if (minutes < OFFLINE.window / 60) return;
+  for (const k of MATERIAL_KEYS) { y.rate[k] = y.rate[k] * .6 + (y.acc[k] / minutes) * .4; y.acc[k] = 0; }
+  y.since = s.time;
+}
+export function offlineRate(s) { return { ...s.yield.rate }; }
+export function settleOffline(s, since, now = Date.now()) {
+  const seconds = clamp((now - since) / 1000, 0, OFFLINE.capSeconds);
+  if (!Number.isFinite(since) || seconds < OFFLINE.minSeconds || s.raid) return null;
+  const gained = {};
+  for (const k of MATERIAL_KEYS) gained[k] = Math.floor(s.yield.rate[k] * (seconds / 60) * OFFLINE.efficiency);
+  if (!MATERIAL_KEYS.some(k => gained[k] > 0)) return null;
+  for (const k of MATERIAL_KEYS) s.materials[k] += gained[k];
+  const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60);
+  log(s, `오프라인 ${hours ? `${hours}시간 ` : ''}${minutes}분 동안 용사들이 재료를 모아 왔습니다: 철 ${gained.iron} · 마력석 ${gained.crystal} · 영혼 ${gained.soul}`, 'loot');
+  return { seconds, gained, capped: (now - since) / 1000 > OFFLINE.capSeconds };
+}
 function deposit(s, h) {
   let total = 0;
-  for (const k of Object.keys(h.bag)) { total += h.bag[k]; s.materials[k] += h.bag[k]; h.bag[k] = 0; }
+  for (const k of Object.keys(h.bag)) { total += h.bag[k]; if (s.yield.acc[k] !== undefined) s.yield.acc[k] += h.bag[k]; s.materials[k] += h.bag[k]; h.bag[k] = 0; }
   const n = h.bagItems.length;
   for (const id of h.bagItems) storeItem(s, id, `${h.name} 귀환`);
   h.bagItems = [];
@@ -389,6 +411,7 @@ export function tick(s, dt) {
   applyTownLayout(s.town);
   dt = clamp(dt, 0, .25);
   s.time += dt; s.day = 1 + Math.floor(s.time / 300);
+  rollYield(s);
   s.effects.forEach(e => e.life -= dt); s.effects = s.effects.filter(e => e.life > 0);
   s.corpses.forEach(c => c.life -= dt); s.corpses = s.corpses.filter(c => c.life > 0);
   for (const d of [...s.fieldDrops]) if (s.time >= d.expires) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); const item = s.items[d.id]; if (item) { if (item.uniqueId) s.codex.uniques[item.uniqueId] = (s.codex.uniques[item.uniqueId] || 0) + 1; storeItem(s, d.id, '5분 경과'); log(s, `${item.name}이(가) 창고에 자동 입고되었습니다.`, 'loot'); } }
@@ -771,6 +794,8 @@ export function restore(raw) {
     if (!Array.isArray(s.logs) || s.logs.length > 60 || !s.logs.every(l => obj(l) && num(l.time) && typeof l.message === 'string' && ['info','system','loot','danger','level','boss'].includes(l.type))) return null;
     if (!Array.isArray(s.corpses) || !s.corpses.every(c => obj(c) && ['x','y','life','zone'].every(k=>num(c[k])) && ZONES[c.zone] && MONSTERS[c.type])) return null;
     s.spawnRates ??= [1,1,1,1]; s.raid ??= null; s.bossKills ??= 0;
+    if (!obj(s.yield) || !obj(s.yield.rate) || !obj(s.yield.acc) || !num(s.yield.since) || !MATERIAL_KEYS.every(k => num(s.yield.rate[k]) && s.yield.rate[k] >= 0 && num(s.yield.acc[k]) && s.yield.acc[k] >= 0)) s.yield = freshYield(num(s.time) ? s.time : 0);
+    if (s.savedAt !== undefined && !num(s.savedAt)) delete s.savedAt;
     if (s.raid !== null && (!obj(s.raid) || typeof s.raid.bossId !== 'string' || !num(s.raid.started) || !num(s.raid.ends))) return null;
     if (!Number.isInteger(s.bossKills) || s.bossKills < 0) return null;
     if (!Array.isArray(s.spawnRates) || s.spawnRates.length !== 4 || !s.spawnRates.every(v => Number.isInteger(v) && v >= 1 && v <= 5)) return null;

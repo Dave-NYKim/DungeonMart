@@ -62,8 +62,7 @@ export function terrainBlocked(x,y){
  const r=regionAt(x,y);if(!r||r===RESERVE)return true;
  if(roadAt(x,y))return false;
  if(y>1710&&Math.abs(x-riverX(y))<20)return true;
- // Volcanic fissure leaves broad northern and southern routes around it.
- return r.zone===3&&x>2770&&x<2810&&y>900&&y<1100;
+ return false;
 }
 export function solidAt(x,y,padding=10){return POIS.find(p=>p.solid&&x>=p.x-p.width/2-padding&&x<=p.x+p.width/2+padding&&y>=p.y-p.height-padding&&y<=p.y+padding);}
 export function isWalkable(x,y){return !terrainBlocked(x,y)&&!solidAt(x,y);}

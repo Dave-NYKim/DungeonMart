@@ -114,7 +114,6 @@ function buildTerrain(){
  }
  // Readable biome landmarks beyond palette changes.
  for(let i=0;i<18;i++){const x=2860+Math.sin(i*.73)*190,y=1750+i*43;if(roadAt(x,y))continue;oval(c,x,y,44+i%4*10,20,'#294f47');oval(c,x,y-4,36,14,'#397b68');oval(c,x-6,y-8,14,4,'#4d9a82');}
- for(let i=0;i<13;i++){const x=2770+i*3+Math.sin(i*.7)*5,y=895+i*17;stroke(c,x,y,x+14,y+24,'#231f2b',34);stroke(c,x,y,x+14,y+24,'#9e4838',18);stroke(c,x,y,x+14,y+24,'#ffc36c',6);}
  // Harbor dock meets a continuous coastal road.
  for(let x=220;x<650;x+=12){rect(c,x,1072,10,80,'#9a8056');rect(c,x,1072,2,80,'#d0b686');if(x%36===4)rect(c,x+3,1072+(x*7)%70,4,1,'#6f5a3c');}
  return {background,statics};

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy } from '../src/engine.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, spawnEnemy, settleOffline, OFFLINE } from '../src/engine.js';
 import { BASES, effectiveGrid } from '../src/items.js';
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
@@ -108,4 +108,16 @@ test('spawn camps cover each act instead of one cluster',()=>{
   for(const r of REGIONS){const camps=CAMPS.filter(c=>c.zone===r.zone);assert.ok(camps.length>=6,r.id);assert.ok(camps.every(c=>regionAt(c.x,c.y)===r));
     const xs=camps.map(c=>c.x),ys=camps.map(c=>c.y);assert.ok(Math.max(...xs)-Math.min(...xs)>r.rx&&Math.max(...ys)-Math.min(...ys)>r.ry*.9,r.id+' spread');}
   const s=createGame();for(let i=0;i<60;i++)spawnEnemy(s,0);const xs=s.enemies.map(e=>e.x);assert.ok(Math.max(...xs)-Math.min(...xs)>600,'packs spawn across the act');
+});
+test('offline settlement pays materials from the measured return rate, capped and never during a raid',()=>{
+  const s=createGame();
+  assert.equal(settleOffline(s,Date.now()-3600e3),null,'no measured income yet means nothing to pay');
+  for(let i=0;i<6000;i++)tick(s,.1);
+  const rate=s.yield.rate;assert.ok(rate.iron>0,'ten minutes of hunting measures an iron rate');
+  const before={...s.materials},since=Date.now()-2*3600e3,r=settleOffline(s,since);
+  assert.ok(r&&r.gained.iron>0);assert.equal(r.gained.iron,Math.floor(rate.iron*120*OFFLINE.efficiency));assert.equal(s.materials.iron,before.iron+r.gained.iron);assert.equal(r.capped,false);
+  const capped=settleOffline(s,Date.now()-40*3600e3);assert.ok(capped.capped);assert.equal(capped.gained.iron,Math.floor(rate.iron*(OFFLINE.capSeconds/60)*OFFLINE.efficiency));
+  assert.equal(settleOffline(s,Date.now()-30e3),null,'under a minute is ignored');
+  s.treasury=5000;assert.ok(summonBoss(s).ok);assert.equal(settleOffline(s,since),null,'no payout during a raid');
+  const legacy=JSON.parse(serialize(s));delete legacy.yield;delete legacy.raid;const loaded=restore(JSON.stringify(legacy));assert.ok(loaded);assert.deepEqual(loaded.yield.rate,{iron:0,crystal:0,soul:0});assert.ok(typeof loaded.savedAt==='number');
 });

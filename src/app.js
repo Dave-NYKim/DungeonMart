@@ -1,7 +1,7 @@
 import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, classOf, skillsOf, titleOf } from './data.js';
 import { GRADES, gradeColor, displayName, itemBase, TIER_NAMES } from './items.js';
 import { installGearUI, itemLines, iconFor } from './gear-ui.js';
-import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
+import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
 import { WorldRenderer, portrait, monsterPortrait, drawHero } from './render.js';
 import { pixelIcon } from './pixel-icons.js';
 import { MART, ARRIVAL, REGIONS, POIS, poiAt, regionAt, MOVABLE_IDS, DECORATIONS, TOWN_BOUNDS, snapTown, placementError, freshTown, applyTownLayout } from './world.js';
@@ -14,6 +14,7 @@ let state, saveAvailable = true, saveLoadError = false;
 try { const raw = localStorage.getItem(SAVE_KEY); state = raw && restore(raw); saveLoadError = !!raw && !state; } catch { saveAvailable = false; }
 state ||= createGame();
 applyTownLayout(state.town);
+let offlineReport = state.savedAt ? settleOffline(state, state.savedAt) : null, hiddenAt = null;
 let selected = state.heroes[0].id, selectedZone = 0, view = 'world', speed = 1, paused = false, last = performance.now(), accumulator = 0, uiTimer = 0, saveTimer = 0, signature = '', toastTimer;
 let profileTab='overview', previewSkillId=null, previewStarted=performance.now(), previewPaused=false, previewElapsed=0, previewSlow=false;
 let pointerHeld=false;
@@ -186,8 +187,12 @@ function renderRaid(){
   const html=`<div class="boss-title"><span>BOSS</span><strong>${m.name}</strong><small>${m.en}</small></div><div class="boss-bar"><span style="width:${Math.max(0,b.hp/b.maxHp*100).toFixed(1)}%"></span></div><div class="boss-meta"><span>${fmt(b.hp)} / ${fmt(b.maxHp)}</span><span>교전 ${fighters}명 · 남은 시간 ${clock(left)}</span></div>`;
   hud.hidden=false;if(hud._markup!==html){hud._markup=html;hud.innerHTML=html;}
 }
+function showOffline(report){
+  if(!report)return;const h=Math.floor(report.seconds/3600),m=Math.floor(report.seconds%3600/60),rate=offlineRate(state);
+  openModal('오프라인 보상',`<p class="modal-description">자리를 비운 ${h?`${h}시간 `:''}${m}분 동안 용사들이 사냥을 이어갔습니다.${report.capped?' (최대 8시간까지 계산)':''}</p><div class="recruit-grid">${[['iron','철 조각'],['crystal','마력석'],['soul','영혼 결정']].map(([k,n])=>`<div class="recruit-choice"><strong>${n} +${report.gained[k].toLocaleString('ko-KR')}</strong><small>분당 ${rate[k].toFixed(2)} · 효율 ${Math.round(OFFLINE.efficiency*100)}%</small></div>`).join('')}</div><p class="modal-description">재료는 이미 창고에 들어왔습니다. 수익률은 실제 귀환 입고량으로 계속 갱신됩니다.</p>`,`<button class="primary-button" data-action="close">받았습니다</button>`);
+}
 function openModal(title,body,footer=''){ $('modal-content').innerHTML=`<div class="modal-heading"><h2>${title}</h2><button data-action="close" aria-label="닫기">×</button></div>${body}${footer?`<div class="modal-footer">${footer}</div>`:''}`;if(!$('modal').open)$('modal').showModal(); }
-function help(){$('hero-modal').close();openModal('던전 한가운데, 오늘도 정상 영업.',`<p class="modal-description">당신은 편의점 주인입니다. 용사들의 전투는 자동으로, 성장의 방향은 당신의 손으로.</p><div class="help-steps"><div class="help-step"><strong>01. 사냥은 용사에게</strong><p>지도는 휠·핀치로 확대하고 드래그로 이동합니다. 액트 버튼과 미니맵으로 이동하세요. 체력이 낮거나 전리품이 쌓이면 마트로 돌아와 무료로 회복합니다. 사망 시 10초 후 부활합니다.</p></div><div class="help-step"><strong>02. 전리품과 제작</strong><p>몬스터가 떨어뜨린 장비와 재료는 귀환 시 마을 창고에 입고됩니다. 세트·유니크는 지도에 빛기둥으로 남으니 클릭해서 가져오세요. 5분이 지나면 자동으로 창고에 들어옵니다.</p></div><div class="help-step"><strong>03. 장비창은 격자</strong><p>용사마다 무기칸·방어구칸·장신구칸 크기가 다릅니다. 창고의 장비를 격자에 놓는 순간 효과가 나고, 처음 놓을 때 용사 골드가 마트 운영금으로 들어옵니다. 홈에 보석·각인석을 박고, 각인석 조합으로 진언을 완성해 보세요.</p></div><div class="help-step"><strong>04. 나만의 전직과 외형</strong><p>20·40레벨에 전직을 선택하세요. 레벨업 포인트로 스킬을 강화하고, 프로필의 색상 버튼으로 무료 코스튬을 적용하세요.</p></div></div><p class="modal-description">10초마다 자동 저장됩니다. 창을 숨기면 사냥은 잠시 멈추며, 오프라인 보상은 아직 없습니다. ${!saveAvailable?'현재 브라우저 저장이 불가능하니 파일로 내보내세요.':''}${saveLoadError?'기존 저장 파일을 읽지 못해 보호 중입니다. 파일을 불러오거나 새 게임을 선택하세요.':''}</p>`,`<button class="small-button" data-action="export">저장 파일 내보내기</button><button class="small-button" data-action="import">불러오기</button><button class="small-button" data-action="new-game">새 게임</button><button class="primary-button" data-action="close">영업 계속하기</button>`);}
+function help(){$('hero-modal').close();openModal('던전 한가운데, 오늘도 정상 영업.',`<p class="modal-description">당신은 편의점 주인입니다. 용사들의 전투는 자동으로, 성장의 방향은 당신의 손으로.</p><div class="help-steps"><div class="help-step"><strong>01. 사냥은 용사에게</strong><p>지도는 휠·핀치로 확대하고 드래그로 이동합니다. 액트 버튼과 미니맵으로 이동하세요. 체력이 낮거나 전리품이 쌓이면 마트로 돌아와 무료로 회복합니다. 사망 시 10초 후 부활합니다.</p></div><div class="help-step"><strong>02. 전리품과 제작</strong><p>몬스터가 떨어뜨린 장비와 재료는 귀환 시 마을 창고에 입고됩니다. 세트·유니크는 지도에 빛기둥으로 남으니 클릭해서 가져오세요. 5분이 지나면 자동으로 창고에 들어옵니다.</p></div><div class="help-step"><strong>03. 장비창은 격자</strong><p>용사마다 무기칸·방어구칸·장신구칸 크기가 다릅니다. 창고의 장비를 격자에 놓는 순간 효과가 나고, 처음 놓을 때 용사 골드가 마트 운영금으로 들어옵니다. 홈에 보석·각인석을 박고, 각인석 조합으로 진언을 완성해 보세요.</p></div><div class="help-step"><strong>04. 나만의 전직과 외형</strong><p>20·40레벨에 전직을 선택하세요. 레벨업 포인트로 스킬을 강화하고, 프로필의 색상 버튼으로 무료 코스튬을 적용하세요.</p></div></div><p class="modal-description">10초마다 자동 저장됩니다. 창을 닫거나 숨긴 동안에는 최근 귀환 입고량을 기준으로 재료를 60% 효율, 최대 8시간까지 정산해 드립니다(골드·경험치 제외). ${!saveAvailable?'현재 브라우저 저장이 불가능하니 파일로 내보내세요.':''}${saveLoadError?'기존 저장 파일을 읽지 못해 보호 중입니다. 파일을 불러오거나 새 게임을 선택하세요.':''}</p>`,`<button class="small-button" data-action="export">저장 파일 내보내기</button><button class="small-button" data-action="import">불러오기</button><button class="small-button" data-action="new-game">새 게임</button><button class="primary-button" data-action="close">영업 계속하기</button>`);}
 
 document.addEventListener('click',event=>{
   const b=event.target.closest('[data-action]');if(!b||b.disabled)return;
@@ -300,7 +305,8 @@ for(const name of['pointerup','pointercancel','lostpointercapture'])$('minimap')
 $('world').addEventListener('keydown',e=>{const k=e.key;if(['+','=','-','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','h','H','0'].includes(k))e.preventDefault();if(k==='+'||k==='=')renderer.zoom(renderer.camera.zoom*1.3);if(k==='-')renderer.zoom(renderer.camera.zoom/1.3);if(k==='0')renderer.overview();if(k.toLowerCase()==='h')renderer.home();if(k==='ArrowLeft')renderer.pan(100,0);if(k==='ArrowRight')renderer.pan(-100,0);if(k==='ArrowUp')renderer.pan(0,100);if(k==='ArrowDown')renderer.pan(0,-100);updateCameraChrome();});
 $('save-icon').innerHTML=icon('save');
 window.addEventListener('pagehide',()=>save());
-document.addEventListener('visibilitychange',()=>{last=performance.now();accumulator=0;if(document.hidden)save();});
+document.addEventListener('visibilitychange',()=>{last=performance.now();accumulator=0;if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){const r=settleOffline(state,hiddenAt);hiddenAt=null;if(r){signature='';renderUI(true);save();showOffline(r);}}});
 function frame(now){const elapsed=Math.min((now-last)/1000,.15);last=now;if(!paused&&!document.hidden&&!renderer.editing){accumulator+=elapsed*speed;while(accumulator>=.1){tick(state,.1);accumulator-=.1;}}renderer.draw(state,selected,selectedZone);drawPreview(now);updateCameraChrome();uiTimer+=elapsed;saveTimer+=elapsed;if(uiTimer>.65){renderUI();uiTimer=0;}if(saveTimer>10){save();saveTimer=0;}requestAnimationFrame(frame);}
 renderUI(true);requestAnimationFrame(frame);
-if(saveLoadError||!saveAvailable)help();else if(state.time<1)setTimeout(()=>toast('첫 영업을 시작합니다. 제작소에서 용사들의 첫 장비를 만들어 보세요.'),900);
+if(offlineReport)save();
+if(saveLoadError||!saveAvailable)help();else if(offlineReport)showOffline(offlineReport);else if(state.time<1)setTimeout(()=>toast('첫 영업을 시작합니다. 제작소에서 용사들의 첫 장비를 만들어 보세요.'),900);
