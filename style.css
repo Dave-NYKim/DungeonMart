@@ -381,3 +381,5 @@ button:active:not(:disabled){filter:brightness(1.15)}
 .town-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.town-head h3{font-size:16px;color:#ecdfb8}.town-head p{font-size:11px;color:#bac9ac;line-height:1.7;margin-top:5px}.town-head .small-button{flex-shrink:0}
 #town-view .wh-list{max-height:none;min-height:80px}#town-view .gear-detail{margin-top:10px}#town-view .facility-grid{margin:12px 0 0}
 @media(max-width:720px){.town-head{display:block}.town-head .small-button{margin-top:8px;width:100%;justify-content:center}}
+/* 모바일 터치 타깃(docs/MOBILE_UI.md): 지도 위 버튼은 44px 이상 */
+@media(max-width:720px){.map-shortcuts button,.zone-shortcut,#time-controls button,.map-zoom button{min-height:44px;min-width:44px}.zone-shortcut{padding:4px 4px!important}.map-shortcuts{max-width:calc(100% - 16px)}}
