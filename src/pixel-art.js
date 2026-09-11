@@ -85,8 +85,18 @@ export function heroSprite(a,frame=0,attack=false){
 }
 // Boss: an original "cinder lord" — ash-black hide split by ember cracks, bone horns, tattered wings. 64×72, feet at (32,68).
 const bossCache=new Map();
+// External boss art (assets/boss.png, PixelLab export, feet on the bottom edge). The procedural
+// sprite below stays as the fallback until the image loads or if it is missing.
+let bossImage=null;
+if(typeof Image!=='undefined'){const img=new Image();img.onload=()=>{bossImage=img;bossCache.clear();};img.src=new URL('../assets/boss.png',import.meta.url);}
 export function bossSprite(frame=0){
  if(bossCache.has(frame))return bossCache.get(frame);
+ if(bossImage){
+  const w=bossImage.naturalWidth,h=bossImage.naturalHeight,canvas=canvasOf(w,h),c=canvas.getContext('2d');c.imageSmoothingEnabled=false;
+  // Frame 1 breathes: the body drops one row while the feet stay planted.
+  if(frame)c.drawImage(bossImage,0,1,w,h-1);else c.drawImage(bossImage,0,0);
+  canvas.anchorY=h-2;bossCache.set(frame,canvas);return canvas;
+ }
  const canvas=canvasOf(64,72),c=canvas.getContext('2d'),r=(x,y,w,h,col)=>rect(c,x,y,w,h,col);
  const ash='#2b2428',ashL='#4a3d42',ashD='#17131a',ember='#ff8f3a',emberL='#ffd27a',bone='#dccbaa',boneD='#9d8a67',wing='#4b2233',wingL='#7a3449',eye='#ffc14d',f=frame?1:0;
  poly(c,[[24,26],[6,12-f*3],[2,30],[8,44],[20,40]],ashD);poly(c,[[24,27],[9,15-f*3],[5,30],[10,42],[20,39]],wing);
@@ -108,7 +118,7 @@ export function bossSprite(frame=0){
  stroke(c,39,9,44,3,bone,2);stroke(c,44,3,47,0,bone,2);stroke(c,39,9,43,4,boneD);
  for(const [x,y] of [[28,6],[32,4],[36,6]])r(x,y,2,3,ember);r(32,3,2,1,emberL);
  for(let x=23;x<41;x+=3)r(x,24,2,1,boneD);
- bossCache.set(frame,canvas);return canvas;
+ canvas.anchorY=68;bossCache.set(frame,canvas);return canvas;
 }
 const monsterCache=new Map();
 export function monsterSprite(m,frame=0,cursed=false){
