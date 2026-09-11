@@ -73,3 +73,9 @@
 - 변경 파일: src/engine.js, src/app.js, src/render.js, src/world-art.js, src/pixel-art.js(scale2x), src/camera.js, index.html, style.css, tests/engine.test.mjs, tests/world.test.mjs, tests/browser-smoke.mjs, HANDOFF.md, README.md, docs/WORKLOG.md.
 - 검증: npm test 29개 통과. 격리 헤드리스 Whale에서 browser-smoke 통과(실제 마우스 드래그로 마을 대기↔ACT I 이동, 잠긴 ACT IV 거부, 칩 클릭 시 팝업, 3열 목록, 메뉴 6개, 모바일 레이아웃). 스크린샷 /tmp/dungeonmart-review/.
 - 미구현: 캐릭터 시트 자체의 고해상도화(48×64), 보드의 액트 요약 정보, 대기 용사 정렬.
+
+## 2026-09-11 · 장비 설계 정정: 필드 빛기둥, 직업 세트
+
+- 사용자 정정: 세트·유니크는 필드 드롭에서만 간간히, 디아블로 III식 빛기둥 표시, 클릭 획득, 5분 미획득 시 자동 창고 입고. 세트는 직업당 하나만.
+- 문서 반영: docs/EQUIPMENT_DESIGN.md 4장 드롭 확률·소프트 천장, 4.1 빛기둥/클릭/자동 입고/저장 구조, 7장 직업 세트 5종 6부위 + 단계 성장, 13·14·15·17·18장 출처·저장·코드 매핑 갱신. 공용 세트 4종 삭제, 상인·도박에서 세트·유니크 제거.
+- 구현 없음. 저장소 첫 커밋 생성.
