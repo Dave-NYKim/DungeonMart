@@ -152,3 +152,9 @@
 - `engine.js`: `FACING_VECTORS`, `facingTo`, `SPIN`(첫 9초, 쿨 18초, 0.3초×8칸, 사거리 230, 60° 원뿔, 공격력 55%, 약화 3초). 선회 중 보스는 이동·근접 공격 안 함. 저장 필드 `facing`, `spinCd`, `spin` 복원 검증.
 - `app.js renderRaid`: 레이드 중 `#summon-boss` 숨김.
 - 검증: npm test(선회 테스트 추가). 이 기기에 Chromium이 없어 화면 미확인.
+## 2026-09-11 · 현재 버전 GitHub main 업로드
+
+- 사용자 요청에 따라 기존 로컬 main 커밋을 원격 main에 push하는 작업 진행.
+- 게임 코드 변경 없이 HANDOFF.md와 docs/WORKLOG.md에 업로드 범위·검증 기록 추가.
+- `npm test`: 46개 전체 통과. 이번 작업에서 브라우저 스모크는 재실행하지 않음.
+- 모바일 접속 주소: https://dave-nykim.github.io/DungeonMart/.
