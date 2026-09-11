@@ -201,6 +201,15 @@
 - **검증**: `npm test` 37개 통과(`tests/items.test.mjs` 8개 신규). 격리 헤드리스 Whale(9224, 임시 프로필)로 제작→배치→드래그 앤 드롭→각인석 박기→빛기둥 배지→기둥 클릭 획득→모달까지 실제 포인터로 확인, 콘솔 오류 없음. 모바일 420px 레이아웃 확인. `tests/browser-smoke.mjs`를 새 장비 UI(세 격자, 제작→배치)와 운영금 0 시작에 맞춰 갱신했고 격리 헤드리스 Whale(9223)에서 통과.
 - **동시 작업 주의**: 이 작업은 별도 워크트리 `../DungeonMart-equip`(브랜치 feature/equipment-v2)에서 진행했다. 같은 시간에 다른 세션이 main 작업 트리에서 보스 레이드(`BOSS_TYPE`, `BOSS_LAIR`, `raid`, `summonBoss`)를 미커밋 상태로 수정 중이었다. main 머지 시 `engine.js`(statsOf/hurtHero/kill/restore), `app.js`(import·renderDetail·click), `data.js`, `render.js`, `index.html`, `style.css`에서 충돌이 예상되며, 장비 쪽은 `RARITIES/SLOT_NAMES/inventory/equipment`를 전부 제거했으므로 보스 코드가 이를 참조하면 새 API로 바꿔야 한다.
 
+## 2026-09-11 후속: 통합 인벤토리, 제작소 분리, 보스 쿨다운·전리품, 분해, 지도 아이콘 바
+
+- **통합 인벤토리**: 용사 팝업 장비 탭의 격자를 한 틀(`.inventory-frame`) 안의 무기·방어구·장신구 구간(`.inventory-region`)으로 표시. 데이터 모델(`hero.grid/placed`, zone·x·y)은 그대로. 구간 정보는 틀 아래 한 줄. 창고 목록은 그 용사가 쓸 수 있는 장비만 표시하고 "사용 불가" 표기는 없앰. 배치하면 창고에서 빠지고, "해제 · 창고로"로 되돌아간다.
+- **마을 제작소**: 하단 메뉴 `제작소`(view `workshop`, `#workshop-view`, 대장간 POI 클릭도 여기로). 제작 폼(✓ = 선택 용사 사용 가능), 창고 전체 목록과 개별 분해, **전체 분해**(일반/매직/레어 버튼, `salvageAll`), 선택 장비 상세·조합·박음돌 박기, 서랍, 시설. 용사 장비 탭(`#gear-view`)에는 배치·해제·회전만 남김. `gear-ui.js`는 `installGearUI(host, ctx, 'hero'|'workshop')` 두 인스턴스.
+- **유물의 정수**(`materials.relic`, `MATERIALS.relic`): 세트·유니크 분해 시 1개. 아직 소비처 없음(사용자 계획: 옵션 수치·옵션 종류 재조정에 사용). 구 저장은 relic 0으로 보정.
+- **보스**: `RAID_COOLDOWN`=1200(게임 시간 20분, `s.raidReadyAt`), 소환 버튼에 남은 시간 표시. 처치 시 `bossLoot`: 3개 빛기둥, 개당 세트 15%/유니크 10%(`DROP_TABLE.boss`), 3연속 꽝이면 확정(`s.bossPity`), 첫 처치는 유니크 확정, ilvl 45+2×처치수. 정예 피해 옵션이 보스에도 적용.
+- **지도 상단 바로가기**: 헤더 아래 왼쪽에 아이콘 버튼(마을, ACT I~IV — 잠긴 액트는 자물쇠)과 전체 지도·헌터 추적·마을 꾸미기·보스 소환. `#zone-shortcuts`는 `renderRaid`에서 갱신. 빛기둥 배지는 그 아래.
+- **테스트**: `npm test` 40개(보스 쿨다운·전리품·전체 분해 추가). `tests/browser-smoke.mjs`는 `DM_DEVTOOLS`/`DM_APP` 환경 변수로 포트 변경 가능(다른 세션과 동시 실행용). 격리 헤드리스 Whale에서 통과. **주의: 여러 세션이 헤드리스 브라우저 포트(9223/9224)를 공유하면 페이지가 서로 바뀐다. 세션마다 다른 포트·프로필을 쓴다.**
+
 ## 남은 범위와 다음 작업
 
 - **모바일 터치 전환(최우선)**: `docs/MOBILE_UI.md` 8절 감사 목록 순서대로. 맵 툴팁 탭/롱프레스화 → `title` 의존 제거 → 탭 타깃 44px 전수 확대 → 마을 편집 고스트 터치화 → 폰에서 좌측 레일을 하단 메뉴로 통합 → 파괴적 동작 확인 단계 → 안내 문구 터치 용어로 통일. 각 항목 완료 시 감사 목록에서 지운다.

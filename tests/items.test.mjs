@@ -134,3 +134,22 @@ test('weight and price helpers follow tier and grade multipliers', () => {
   assert.ok(weightOf(b) > weightOf(a)); assert.ok(priceOf(b) > priceOf(a));
   const m = generateItem({ ilvl: 50, grade: 'rare', baseKey: 'plate', tier: 3, rng }); assert.ok(priceOf(m) > priceOf(b));
 });
+
+test('boss raids have a cooldown, drop three beams with generous set/unique odds, and bulk salvage yields relic essence', async () => {
+  const { summonBoss, RAID_COOLDOWN, raidCooldownLeft, BOSS_DROPS, salvageAll } = await import('../src/engine.js');
+  const s = createGame(); s.treasury = 5000; for (const h of s.heroes) { h.level = 40; h.hp = statsOf(h, s).hp; }
+  const r = summonBoss(s); assert.ok(r.ok); assert.equal(raidCooldownLeft(s), RAID_COOLDOWN);
+  r.boss.hp = 1; s.heroes[0].x = r.boss.x; s.heroes[0].y = r.boss.y; s.heroes[0].state = 'hunt'; s.heroes[0].zone = 3;
+  for (let i = 0; i < 60 && s.raid; i++) tick(s, .1);
+  assert.equal(s.raid, null); assert.equal(s.bossKills, 1);
+  const beams = s.fieldDrops.filter(d => s.items[d.id].origin === 'boss'); assert.equal(beams.length, BOSS_DROPS, '보스 전리품 3개는 빛기둥');
+  assert.ok(beams.some(d => s.items[d.id].grade === 'unique'), '첫 보스 처치는 유니크 확정');
+  assert.equal(summonBoss(s).ok, false, '쿨다운 중 재소환 불가'); s.time += RAID_COOLDOWN; assert.ok(summonBoss(s).ok);
+  const rng = seeded(4); let hits = 0; for (let i = 0; i < 3000; i++) if (['set', 'unique'].includes(rollGrade('boss', 0, 0, rng))) hits++;
+  assert.ok(hits > 500 && hits < 1000, `보스 개당 세트·유니크 약 25% (${hits}/3000)`);
+  const u = give(s, generateItem({ ilvl: 40, grade: 'unique', rng })); const before = s.materials.relic || 0;
+  const salv = (await import('../src/engine.js')).salvage(s, u.id); assert.ok(salv.ok); assert.equal(s.materials.relic, before + 1, '유니크 분해는 유물의 정수 1');
+  for (const g of ['normal', 'magic', 'rare']) give(s, generateItem({ ilvl: 10, grade: g, baseKey: 'leather', rng }));
+  assert.equal(salvageAll(s, 'unique').ok, false); const iron = s.materials.iron; assert.ok(salvageAll(s, 'normal').ok); assert.ok(s.materials.iron > iron); assert.ok(!s.warehouse.some(id => s.items[id].grade === 'normal'));
+  assert.ok(restore(serialize(s)));
+});

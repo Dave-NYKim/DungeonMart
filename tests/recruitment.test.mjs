@@ -27,7 +27,7 @@ test('grades and rates persist, legacy fields default safely and invalid setting
 test('a new game starts with zero mart gold',()=>{assert.equal(createGame().treasury,0);});
 
 test('existing saves keep their treasury balance without any operating fund grant',()=>{
- const s=createGame();delete s.operatingGrantApplied;s.treasury=80;s.materials={iron:666,crystal:132,soul:0};
+ const s=createGame();delete s.operatingGrantApplied;s.treasury=80;s.materials={iron:666,crystal:132,soul:0,relic:0};
  const next=restore(serialize(s));assert.equal(next.treasury,80);assert.equal(next.operatingGrantApplied,true);assert.deepEqual(next.materials,s.materials);assert.deepEqual(JSON.parse(serialize(next)).heroes,JSON.parse(serialize(s)).heroes);
  next.treasury+=120;assert.equal(restore(serialize(next)).treasury,200);
 });

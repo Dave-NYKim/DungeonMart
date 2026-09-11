@@ -250,7 +250,7 @@ body.zone-dragging,body.zone-dragging *{cursor:grabbing!important;user-select:no
 .cost-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .drag-ghost-item{position:fixed;left:0;top:0;width:calc(var(--w) * 30px);height:calc(var(--h) * 30px);background:#2c382fcc;border:2px solid var(--item-color);display:flex;align-items:center;justify-content:center;color:var(--item-color);pointer-events:none;z-index:9999}
 body.gear-dragging{cursor:grabbing;user-select:none}
-.drop-badges{position:absolute;left:12px;top:88px;display:flex;flex-direction:column;gap:4px;z-index:2;max-width:46%;align-items:flex-start}
+.drop-badges{position:absolute;left:12px;top:150px;display:flex;flex-direction:column;gap:4px;z-index:2;max-width:46%;align-items:flex-start}
 .drop-badge{border:2px solid #f0a24a;background:#2b2418ee;color:#ffd39a;font-size:10px;padding:5px 8px;text-align:left;display:flex;justify-content:space-between;gap:8px;animation:badge-pulse 1.6s ease-in-out infinite;box-shadow:0 0 12px #f0a24a55}
 .drop-badge.set{border-color:#7fdc7a;color:#b9f0b3;box-shadow:0 0 12px #7fdc7a55}
 .drop-badge small{font-size:9px;opacity:.85}
@@ -296,6 +296,31 @@ body.gear-dragging{cursor:grabbing;user-select:none}
 .tree-detail .tree-skill-list{margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;flex-direction:row}
 @media(max-width:720px){.tree-node{width:66px;padding:4px 2px}.tree-node small{display:none}.tree-node strong{font-size:9px}.d2-tree li{padding:18px 2px 0}.d2-tree ul{padding-top:18px}.d2-tree li::before,.d2-tree li::after,.d2-tree ul ul::before{height:18px}}
 
+/* ---------------------------------------------------------------- 지도 상단 바로가기 아이콘 바 · 통합 장비창 · 제작소 */
+.map-shortcuts{left:12px;right:auto;top:104px;justify-content:flex-start;align-items:flex-start;pointer-events:none;flex-wrap:wrap;max-width:calc(100% - 200px)}
+.shortcut-group{display:flex;gap:5px;pointer-events:auto;flex-wrap:wrap}
+.shortcut-group.right{justify-content:flex-end}
+.zone-shortcut{display:inline-flex;flex-direction:column;align-items:center;gap:2px;min-width:44px;padding:5px 6px!important;line-height:1}
+.zone-shortcut svg{width:16px;height:16px}
+.zone-shortcut small{font-size:8px;letter-spacing:.5px}
+.zone-shortcut.locked{opacity:.45}
+.zone-shortcut.active{background:#a7ba79;color:#203125;border-color:#d1d8a0}
+#summon-boss.cooldown{opacity:.7}
+.inventory-frame{position:relative;display:grid;grid-auto-flow:column;gap:0;background:#151b17;border:2px solid #4c5a47;box-shadow:inset 2px 2px #0d120f;touch-action:none;user-select:none;width:max-content;max-width:100%;overflow:auto}
+.inventory-region{position:relative;display:grid;grid-template-columns:repeat(var(--w),var(--cell));grid-template-rows:repeat(var(--h),var(--cell));align-content:start;padding:18px 0 0;border-right:2px solid #3c4a3a}
+.inventory-region:last-child{border-right:0}
+.inventory-region::before{content:attr(data-label);position:absolute;top:2px;left:4px;font-size:9px;color:#c9d0b3;letter-spacing:.5px}
+.inventory-region[data-grid-zone="weapon"] .grid-cell{background:#242a24}.inventory-region[data-grid-zone="armor"] .grid-cell{background:#1e2621}.inventory-region[data-grid-zone="accessory"] .grid-cell{background:#26252a}
+.inventory-region .grid-item{top:calc(18px + var(--y) * var(--cell))}
+.gear-layout.hero-mode{grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr)}
+.salvage-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.salvage-row .small-button{width:auto}
+.workshop-layout{display:grid;gap:14px}
+.workshop-layout .gear-right{min-width:0}
+@media(max-width:900px){.gear-layout.hero-mode{grid-template-columns:1fr}.map-shortcuts{max-width:calc(100% - 16px)}}
+.inventory-info{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:9px;color:#aeb59f;margin-top:5px}
+.inventory-info b{color:#e2d9b4;font-weight:600}
+.inventory-region::before{white-space:nowrap}
 /* 난이도 선택 */
 .difficulty-bar{margin:0 0 10px;padding:10px 12px;background:#2a3a30;border:2px solid #596c4e;border-left:6px solid var(--diff-color);box-shadow:inset 1px 1px #6c7b59,3px 3px #192a22}
 .diff-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.diff-head strong{font-size:13px;color:#f3e2b1}.diff-head small{font-size:9px;color:#b4c59c}
