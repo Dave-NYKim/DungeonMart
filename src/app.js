@@ -1,3 +1,4 @@
+import { equipmentCodexHTML } from './equipment-codex.js';
 import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, DIFFICULTIES, STAGES, stageMult, classOf, skillsOf, titleOf } from './data.js';
 import { GRADES, gradeColor, displayName, itemBase, TIER_NAMES } from './items.js';
 import { installGearUI, itemLines, iconFor } from './gear-ui.js';
@@ -15,7 +16,7 @@ try { const raw = localStorage.getItem(SAVE_KEY); state = raw && restore(raw); s
 state ||= createGame();
 applyTownLayout(state.town);
 let offlineReport = state.savedAt ? settleOffline(state, state.savedAt) : null, hiddenAt = null;
-let selected = state.heroes[0].id, selectedZone = 0, view = 'world', speed = [1,2].includes(state?.speed) ? state.speed : 1, paused = false, last = performance.now(), accumulator = 0, uiTimer = 0, saveTimer = 0, signature = '', toastTimer;
+let selected = state.heroes[0].id, selectedZone = 0, view = 'world', paused = false, last = performance.now(), accumulator = 0, uiTimer = 0, saveTimer = 0, signature = '', toastTimer;
 let profileTab='overview', previewSkillId=null, previewStarted=performance.now(), previewPaused=false, previewElapsed=0, previewSlow=false;
 let pointerHeld=false;
 document.addEventListener('pointerdown',()=>pointerHeld=true);
@@ -62,18 +63,19 @@ function selectHero(id) { selected=id;previewSkillId=null;signature='';renderUI(
 function setView(next) {
   $('hero-modal').close();returnProfileViews();
   if(next==='skills'){openProfile('skills');return;}
+  if(next==='workshop'){townMode='workshop';next='town';}
   view = next;
   renderer.editing=next==='town'&&townMode==='edit';renderer.editGhost=null;
   if(next==='town'){if(townMode==='edit')renderer.focus(1808,1200,.72);renderTown();}
   $('management-panel').hidden = view === 'world';
-  for (const id of ['heroes', 'expedition', 'workshop', 'skills', 'bestiary', 'journal', 'town']) $(`${id}-view`).hidden = id !== view;
-  const headings = { world: '사냥터', heroes: '용사 관리', expedition: '사냥터 배정', workshop: '마을 제작소', skills: '전직 & 스킬', bestiary: '몬스터 도감', journal: '마트 소식', town:townMode==='edit'?'마을 편집':'마을' };
+  for (const id of ['heroes', 'expedition', 'skills', 'bestiary', 'town']) $(`${id}-view`).hidden = id !== view;
+  const headings = { world: '사냥터', heroes: '용사 관리', expedition: '사냥터 배정', workshop: '마을 제작소', skills: '전직 & 스킬', bestiary: '도감', town:'마을' };
   $('page-title').textContent = headings[view];
-  $('page-description').textContent = view === 'heroes' ? '용사를 눌러 장비·전직·스킬을 관리하세요.' : view === 'workshop' ? '장비 제작, 창고 정리·분해, 박음돌·조합, 시설 개선. 장비 배치는 용사 팝업의 장비 탭에서 합니다.' : view === 'expedition' ? '용사 아이콘을 끌어서 마을 대기 또는 액트 열에 놓으세요.' : view === 'town' ? (townMode==='edit'?'시설을 고르고 지도에서 위치를 누르세요.':'창고의 장비를 눌러 확인하고 선택 용사에게 배치하세요.') : '';
+  $('page-description').textContent = view === 'heroes' ? '용사를 눌러 장비·전직·스킬을 관리하세요.' : view === 'workshop' ? '장비 제작, 창고 정리·분해, 박음돌·조합, 시설 개선. 장비 배치는 용사 팝업의 장비 탭에서 합니다.' : view === 'expedition' ? '용사 아이콘을 끌어서 마을 대기 또는 액트 열에 놓으세요.' : view === 'town' ? '창고 · 제작 · 꾸미기' : '';
   signature = ''; renderUI(true);
   requestAnimationFrame(() => { renderer.resize(); updateCameraChrome(); });
 }
-function renderNav() { $('nav').innerHTML = [['world','map','맵'],['heroes','sword','용사'],['expedition','map','사냥터'],['workshop','axe','제작소'],['town','shop','마을'],['bestiary','book','도감'],['journal','book','소식']].map(([id,i,n])=>`<button class="nav-button ${view===id?'active':''}" data-action="view" data-view="${id}" aria-label="${n}" aria-pressed="${view===id}">${icon(i)}<span>${n}</span></button>`).join('') + `<button class="nav-button" data-action="help" aria-label="게임 안내">${icon('save')}<span>설정</span></button>`; }
+function renderNav() { $('nav').innerHTML = [['world','map','맵'],['heroes','sword','용사'],['expedition','map','사냥터'],['town','shop','마을'],['bestiary','book','도감']].map(([id,i,n])=>`<button class="nav-button ${view===id?'active':''}" data-action="view" data-view="${id}" aria-label="${n}" aria-pressed="${view===id}">${icon(i)}<span>${n}</span></button>`).join('') + `<button class="nav-button" data-action="help" aria-label="게임 안내">${icon('save')}<span>설정</span></button>`; }
 function renderResources() { $('resources').innerHTML = [['coin','마트 운영금',state.treasury,' G'],['iron','철 조각',state.materials.iron,''],['gem','마력석',state.materials.crystal,''],['skull','영혼 결정',state.materials.soul,'']].map(([i,n,v,s])=>`<div class="resource">${icon(i)}<div><small>${n}</small><strong>${fmt(v)}${s}</strong></div></div>`).join(''); }
 function renderRoster() {
   $('hero-count').textContent = `${state.heroes.length} / 20`;
@@ -110,15 +112,15 @@ const gearCtx={state:()=>state,hero:()=>selectedHero(),icon,fmt,result:r=>result
 const gearUI=installGearUI($('gear-view'),gearCtx,'hero'),workshopUI=installGearUI($('workshop-view'),gearCtx,'workshop');
 // 마을 메뉴의 창고 화면: 리스너를 유지하려고 고정 호스트 요소를 town-view 안에 붙였다 뗀다.
 const townGearHost=document.createElement('div');townGearHost.id='town-gear';
-const townUI=installGearUI(townGearHost,{...gearCtx,hero:()=>null,townHeader:()=>`<div class="town-head"><div><h3>마을 창고</h3><p>용사가 귀환하면 전리품이 이곳에 들어옵니다. 장비를 누르면 상세가 보입니다. 장착은 <b>용사</b> 화면에서 용사를 고른 뒤 장비 탭에서 합니다.</p></div><button class="small-button" data-action="town-mode" data-mode="edit">${icon('shop')} 마을 편집</button></div>`},'town');
+const townUI=installGearUI(townGearHost,{...gearCtx,hero:()=>null,townHeader:()=>`<div class="town-head"><div><h3>마을 창고</h3><p>아이템 1개 = 1자리 · 장착은 용사 메뉴에서</p></div></div>`},'town');
 function renderWorkshop() { workshopUI.render(); }
 function renderGear() { gearUI.render(); }
 let treeNode=null,viewTier=null;
 function difficultyBarHTML(){
   const f=state.difficulty,tier=viewTier??f.tier,D=DIFFICULTIES[tier];
-  const tiers=DIFFICULTIES.map((d,i)=>`<button class="diff-tier ${i===tier?'active':''} ${i===f.tier?'current':''}" data-action="difficulty-tier" data-tier="${i}" style="--diff-color:${d.color}" ${i>f.unlocked?'disabled':''} title="${i>f.unlocked?`${DIFFICULTIES[i-1].name} 보스 처치 시 해금`:d.name}">${d.name}${i>f.unlocked?` ${icon('lock')}`:''}</button>`).join('');
-  const stages=Array.from({length:STAGES},(_,i)=>i+1).map(st=>`<button class="diff-stage ${tier===f.tier&&st===f.stage?'active':''}" data-action="difficulty-stage" data-tier="${tier}" data-stage="${st}" aria-pressed="${tier===f.tier&&st===f.stage}" title="몬스터 ×${(D.mult*stageMult(st)).toFixed(1)}">${st}</button>`).join('');
-  return `<div class="difficulty-bar" style="--diff-color:${DIFFICULTIES[f.tier].color}"><div class="diff-head"><span class="eyebrow">DIFFICULTY</span><strong>${DIFFICULTIES[f.tier].name} ${f.stage}단계</strong><small>몬스터 ×${(DIFFICULTIES[f.tier].mult*stageMult(f.stage)).toFixed(1)} · 보상 ×${DIFFICULTIES[f.tier].reward}</small><span id="difficulty-lock" class="diff-lock"></span></div><div class="diff-tiers">${tiers}</div><div class="diff-stages" aria-label="${D.name} 단계 선택">${stages}</div><small class="diff-hint">단계를 누르면 즉시 적용되고 5분 동안 고정됩니다. 그 난이도에서 보스를 잡으면 다음 난이도가 열립니다.</small></div>`;
+  const tiers=DIFFICULTIES.map((d,i)=>`<button class="diff-tier ${i===tier?'active':''} ${i===f.tier?'current':''}" data-action="difficulty-tier" data-tier="${i}" style="--diff-color:${d.color}" ${i>f.unlocked?'disabled':''} title="${i>f.unlocked?`${DIFFICULTIES[i-1].name} 10단계 보스 처치 시 해금`:d.name}">${d.name}${i>f.unlocked?` ${icon('lock')}`:''}</button>`).join('');
+  const stages=Array.from({length:STAGES},(_,i)=>i+1).map(st=>`<button class="diff-stage ${tier===f.tier&&st===f.stage?'active':''}" data-action="difficulty-stage" data-tier="${tier}" data-stage="${st}" ${tier>f.unlocked||tier===f.unlocked&&st>f.unlockedStage?'disabled':''} aria-label="${D.name} ${st}단계${tier>f.unlocked||tier===f.unlocked&&st>f.unlockedStage?' · 이전 단계 보스 처치 필요':''}" aria-pressed="${tier===f.tier&&st===f.stage}" title="몬스터 ×${(D.mult*stageMult(st)).toFixed(1)}">${st}</button>`).join('');
+  return `<div class="difficulty-bar" style="--diff-color:${DIFFICULTIES[f.tier].color}"><div class="diff-head"><span class="eyebrow">DIFFICULTY</span><strong>${DIFFICULTIES[f.tier].name} ${f.stage}단계</strong><small>몬스터 ×${(DIFFICULTIES[f.tier].mult*stageMult(f.stage)).toFixed(1)} · 보상 ×${DIFFICULTIES[f.tier].reward}</small><span id="difficulty-lock" class="diff-lock"></span></div><div class="diff-tiers">${tiers}</div><div class="diff-stages" aria-label="${D.name} 단계 선택">${stages}</div><small class="diff-hint">보스 처치 → 다음 단계 · 변경 후 5분 고정</small></div>`;
 }
 function renderDifficultyLock(){const el=$('difficulty-lock');if(!el)return;const wait=state.difficulty.lockedUntil-state.time;el.textContent=wait>0?`변경 잠금 ${clock(wait)}`:'변경 가능';el.classList.toggle('locked',wait>0);}
 function treeNodesOf(h){const c=classOf(h);return [{node:c,tier:1,parent:null},...c.branches.map(b=>({node:b,tier:2,parent:c})),...c.branches.flatMap(b=>b.children.map(n=>({node:n,tier:3,parent:b})))];}
@@ -160,10 +162,13 @@ function drawPreview(now){
  canvas.dataset.skill=sk.id;canvas.dataset.phase=String(t);
 }
 function renderTown(){
- const host=$('town-view');
- if(townMode!=='edit'){if(townGearHost.parentNode!==host){host.innerHTML='';host.append(townGearHost);}townUI.render();return;}
- if(townGearHost.parentNode===host)townGearHost.remove();
- host.innerHTML=`<div class="town-intro"><div><h3>나만의 던전 마을</h3><p>시설을 선택한 뒤 지도에서 새 위치를 누르세요. 터치에서는 한 번 누르면 미리보기, 같은 곳을 한 번 더 누르거나 '여기에 배치'를 누르면 확정됩니다. 지도는 끌어서 이동 · 편집 중 사냥은 잠시 멈춥니다.</p></div><div class="town-actions"><button class="small-button" data-action="town-undo" ${townUndo.length?'':'disabled'}>↶ 되돌리기</button><button class="small-button" data-action="town-reset">기본 배치</button><button class="primary-button" data-action="town-mode" data-mode="warehouse">편집 완료</button></div></div><div class="town-tools"><div><h4>시설 이동 · 무료</h4><div class="tool-row">${POIS.filter(p=>MOVABLE_IDS.includes(p.id)).map(p=>`<button class="small-button ${townTool.id===p.id?'active':''}" data-action="town-tool" data-kind="move" data-id="${p.id}">${p.name}</button>`).join('')}</div></div><div><h4>마을 장식 · 무료 · ${state.town.decorations.length}/300</h4><div class="tool-row">${Object.entries(DECORATIONS).map(([id,d])=>`<button class="small-button ${townTool.type===id?'active':''}" data-action="town-tool" data-kind="decorate" data-type="${id}">${d.name}</button>`).join('')}<button class="small-button ${townTool.kind==='erase'?'active':''}" data-action="town-tool" data-kind="erase">장식 지우기</button></div></div></div><div class="town-confirm-row"><p class="town-feedback" id="town-feedback" role="status">${townTool.kind==='move'?POIS.find(p=>p.id===townTool.id)?.name+' 이동 위치를 선택하세요.':townTool.kind==='erase'?'지울 장식을 누르세요.':DECORATIONS[townTool.type]?.name+' 배치 위치를 선택하세요.'} 배치는 즉시 저장됩니다.</p><button class="primary-button" id="town-confirm" data-action="town-confirm" hidden>여기에 배치</button></div>`;
+ const host=$('town-edit');
+ const tabs=$('town-tabs'),markup=[['warehouse','창고'],['workshop','제작소'],['edit','꾸미기']].map(([id,name])=>`<button data-action="town-mode" data-mode="${id}" aria-pressed="${townMode===id}" class="${townMode===id?'active':''}">${name}</button>`).join('');
+ if(tabs._markup!==markup){tabs.innerHTML=markup;tabs._markup=markup;}
+ $('town-warehouse').hidden=townMode!=='warehouse';$('workshop-view').hidden=townMode!=='workshop';host.hidden=townMode!=='edit';
+ if(townMode==='warehouse'){if(townGearHost.parentNode!==$('town-warehouse'))$('town-warehouse').append(townGearHost);townUI.render();return;}
+ if(townMode==='workshop'){renderWorkshop();return;}
+ host.innerHTML=`<div class="town-intro"><div><h3>나만의 던전 마을</h3><p>시설 선택 → 위치 선택 → 배치 · 사냥 일시정지</p></div><div class="town-actions"><button class="small-button" data-action="town-undo" ${townUndo.length?'':'disabled'}>↶ 되돌리기</button><button class="small-button" data-action="town-reset">기본 배치</button><button class="primary-button" data-action="town-mode" data-mode="warehouse">편집 완료</button></div></div><div class="town-tools"><div><h4>시설 이동 · 무료</h4><div class="tool-row">${POIS.filter(p=>MOVABLE_IDS.includes(p.id)).map(p=>`<button class="small-button ${townTool.id===p.id?'active':''}" data-action="town-tool" data-kind="move" data-id="${p.id}">${p.name}</button>`).join('')}</div></div><div><h4>마을 장식 · 무료 · ${state.town.decorations.length}/300</h4><div class="tool-row">${Object.entries(DECORATIONS).map(([id,d])=>`<button class="small-button ${townTool.type===id?'active':''}" data-action="town-tool" data-kind="decorate" data-type="${id}">${d.name}</button>`).join('')}<button class="small-button ${townTool.kind==='erase'?'active':''}" data-action="town-tool" data-kind="erase">장식 지우기</button></div></div></div><div class="town-confirm-row"><p class="town-feedback" id="town-feedback" role="status">${townTool.kind==='move'?POIS.find(p=>p.id===townTool.id)?.name+' 이동 위치를 선택하세요.':townTool.kind==='erase'?'지울 장식을 누르세요.':DECORATIONS[townTool.type]?.name+' 배치 위치를 선택하세요.'} 배치는 즉시 저장됩니다.</p><button class="primary-button" id="town-confirm" data-action="town-confirm" hidden>여기에 배치</button></div>`;
 }
 function townGhost(point,confirm=false){
  const p=snapTown(point.x,point.y),def=townTool.kind==='move'?POIS.find(o=>o.id===townTool.id):DECORATIONS[townTool.type]||{width:32,height:32};
@@ -176,20 +181,22 @@ function placeTown(point){
  const before=structuredClone(state.town),r=editTown(state,{...townTool,x:point.x,y:point.y});if(r.ok){townUndo.push(before);if(townUndo.length>20)townUndo.shift();signature='';save();renderUI(true);}toast(r.message,!r.ok);townGhost(point);
 }
 const traits={coward:'동료가 쓰러지면 잠시 후퇴',revive:'근처의 시체를 되살리는 원거리 시전자',tough:'높은 체력 · 느린 이동',melee:'가까운 용사를 추격하는 근접 공격',charged:'피격 시 일정 확률로 전격 반격',charge:'빠른 접근과 연속 공격',poison:'원거리 독 공격 · 지속 피해',fire:'주기적인 범위 화염 공격',drain:'원거리 공격으로 생명력 흡수',curse:'공격 시 일시적으로 용사 약화',spawn:'주기적으로 작은 하수인 생성',boss:'봉인문에서 소환되는 재의 군주 · 잿불 폭발과 부하 소환'};
-function renderBestiary(){ $('bestiary-view').innerHTML=ZONES.map(z=>`<article class="surface bestiary-act" style="--act-color:${z.color}"><div class="section-title"><div><div class="eyebrow">ACT ${z.act} · ${z.en}</div><h3 style="margin-top:8px">${z.name}</h3></div><span class="muted">Lv.${z.level}+</span></div><p>${z.theme} · 주요 재료: ${MATERIALS[z.material].name}</p><div class="monster-grid">${z.monsters.map(id=>{const m=MONSTERS[id];return `<div class="monster-entry"><canvas class="monster-portrait" data-monster="${id}" width="64" height="72" aria-hidden="true"></canvas><strong style="color:${m.color}">${m.name}</strong><small>${m.en}</small><p>${traits[m.trait]}</p></div>`;}).join('')}</div><p class="source-note">몬스터 구성 참고: <a href="https://classic.battle.net/diablo2exp/monsters/act${z.id+1}.shtml" target="_blank" rel="noopener noreferrer">Blizzard · The Arreat Summit, Act ${z.act}</a></p></article>`).join('')+'<p class="source-note">몬스터 명칭·액트 분류를 참고했습니다. 그래픽은 직접 그린 픽셀 아트이며, 능력치와 전투 수치는 Dungeon Mart 기준입니다.</p>'; for(const canvas of document.querySelectorAll('[data-monster]'))monsterPortrait(canvas,canvas.dataset.monster); }
+let codexTab='monsters';
+function renderBestiary(){
+ const root=$('bestiary-view'), opened=[...root.querySelectorAll('details[open]')].map(e=>e.dataset.codexId);
+ const tabs=`<div class="codex-tabs" role="group" aria-label="도감 분류">${[['monsters','몬스터'],['sets','세트'],['uniques','유니크']].map(([id,name])=>`<button data-action="codex-tab" data-tab="${id}" aria-pressed="${codexTab===id}" class="${codexTab===id?'active':''}">${name}</button>`).join('')}</div>`;
+ if(codexTab!=='monsters'){root.innerHTML=tabs+equipmentCodexHTML(state,codexTab);for(const e of root.querySelectorAll('details'))e.open=opened.includes(e.dataset.codexId);return;}
+ $('bestiary-view').innerHTML=tabs+ZONES.map(z=>`<article class="surface bestiary-act" style="--act-color:${z.color}"><div class="section-title"><div><div class="eyebrow">ACT ${z.act} · ${z.en}</div><h3 style="margin-top:8px">${z.name}</h3></div><span class="muted">Lv.${z.level}+</span></div><p>${z.theme} · 주요 재료: ${MATERIALS[z.material].name}</p><div class="monster-grid">${z.monsters.map(id=>{const m=MONSTERS[id];return `<div class="monster-entry"><canvas class="monster-portrait" data-monster="${id}" width="64" height="72" aria-hidden="true"></canvas><strong style="color:${m.color}">${m.name}</strong><small>${m.en}</small><p>${traits[m.trait]}</p></div>`;}).join('')}</div><p class="source-note">몬스터 구성 참고: <a href="https://classic.battle.net/diablo2exp/monsters/act${z.id+1}.shtml" target="_blank" rel="noopener noreferrer">Blizzard · The Arreat Summit, Act ${z.act}</a></p></article>`).join('')+'<p class="source-note">몬스터 명칭·액트 분류를 참고했습니다. 그래픽은 직접 그린 픽셀 아트이며, 능력치와 전투 수치는 Dungeon Mart 기준입니다.</p>'; for(const canvas of document.querySelectorAll('[data-monster]'))monsterPortrait(canvas,canvas.dataset.monster); }
 function renderUI(force=false){
   if(!force&&(pointerHeld||document.activeElement?.tagName==='SELECT'))return;
   renderResources();renderRoster();renderActs();updateDetail();
   
-  $('day-label').textContent=`DAY ${String(state.day).padStart(2,'0')} · ${DIFFICULTIES[state.difficulty.tier].name} ${state.difficulty.stage}단계`;$('playtime').textContent=clock(state.time);$('kill-counter').textContent=`누적 처치 ${fmt(state.kills)}`;
-  $('activity-log').innerHTML=state.logs.slice(0,3).map(l=>`<div class="log-row ${l.type}"><time>${clock(l.time)}</time><span class="log-message">${l.message}</span></div>`).join('');
+  $('day-label').textContent=`DAY ${String(state.day).padStart(2,'0')} · ${DIFFICULTIES[state.difficulty.tier].name} ${state.difficulty.stage}단계`;$('playtime').textContent=clock(state.time);
   const h=selectedHero();const nextSig=JSON.stringify([selected,view,h.level,h.path,h.placed,h.costume,h.skillRanks,h.skillPoints,state.itemRev,state.warehouse.length,state.fieldDrops.length,Object.values(state.drawer.gems).join(),Object.values(state.drawer.runes).join(),state.upgrades,state.materials]);
   renderDropBadges();
   if(force||signature!==nextSig){signature=nextSig;renderNav();renderDetail();if($('hero-modal').open)renderProfileChrome();if(view==='workshop')renderWorkshop();if($('hero-modal').open&&profileTab==='equipment')renderGear();if(view==='skills'||$('hero-modal').open&&profileTab==='skills')renderSkills();if(view==='bestiary')renderBestiary();if(view==='town')renderTown();}
   renderRaid();
   $('objective').textContent=!state.crafted?'첫 영업 목표: 장비 한 개 제작하기':!state.sales?'다음 목표: 용사의 장비창에 장비 배치하기':!state.heroes.some(h=>h.level>=8)?'다음 목표: 용사 Lv.8 달성 · ACT II 해금':'오늘도 던전 한가운데, 정상 영업.';
-  const timeControlsHTML=`${[1,2].map(n=>`<button data-action="speed" data-value="${n}" class="${speed===n?'active':''}" aria-label="${n}배속" aria-pressed="${speed===n}">${n}×</button>`).join('')}`;
-  if ($('time-controls')._markup !== timeControlsHTML) { $('time-controls').innerHTML = timeControlsHTML; $('time-controls')._markup = timeControlsHTML; }
 }
 function renderRaid(){
   const b=state.raid&&state.enemies.find(e=>e.id===state.raid.bossId),hud=$('boss-hud'),button=$('summon-boss');
@@ -206,13 +213,13 @@ function showOffline(report){
   openModal('오프라인 보상',`<p class="modal-description">자리를 비운 ${h?`${h}시간 `:''}${m}분 동안 용사들이 사냥을 이어갔습니다.${report.capped?' (최대 8시간까지 계산)':''}</p><div class="recruit-grid">${[['iron','철 조각'],['crystal','마력석'],['soul','영혼 결정']].map(([k,n])=>`<div class="recruit-choice"><strong>${n} +${report.gained[k].toLocaleString('ko-KR')}</strong><small>분당 ${rate[k].toFixed(2)} · 효율 ${Math.round(OFFLINE.efficiency*100)}%</small></div>`).join('')}</div><p class="modal-description">재료는 이미 창고에 들어왔습니다. 수익률은 실제 귀환 입고량으로 계속 갱신됩니다.</p>`,`<button class="primary-button" data-action="close">받았습니다</button>`);
 }
 function openModal(title,body,footer=''){ $('modal-content').innerHTML=`<div class="modal-heading"><h2>${title}</h2><button data-action="close" aria-label="닫기">×</button></div>${body}${footer?`<div class="modal-footer">${footer}</div>`:''}`;if(!$('modal').open)$('modal').showModal(); }
-function help(){$('hero-modal').close();openModal('던전 한가운데, 오늘도 정상 영업.',`<p class="modal-description">당신은 편의점 주인입니다. 용사들의 전투는 자동으로, 성장의 방향은 당신의 손으로.</p><div class="help-steps"><div class="help-step"><strong>01. 사냥은 용사에게</strong><p>지도는 두 손가락으로 벌려 확대하고(데스크톱은 휠) 끌어서 이동합니다. 액트 버튼과 미니맵으로 이동하세요. 체력이 낮거나 전리품이 쌓이면 마트로 돌아와 무료로 회복합니다. 사망 시 10초 후 부활합니다.</p></div><div class="help-step"><strong>02. 전리품과 제작</strong><p>몬스터가 떨어뜨린 장비와 재료는 귀환 시 마을 창고에 입고됩니다. 세트·유니크는 지도에 빛기둥으로 남으니 눌러서 가져오세요. 5분이 지나면 자동으로 창고에 들어옵니다.</p></div><div class="help-step"><strong>03. 장비창은 격자</strong><p>용사마다 무기칸·방어구칸·장신구칸 크기가 다릅니다. 창고의 장비를 격자에 놓는 순간 효과가 나고, 처음 놓을 때 용사 골드가 마트 운영금으로 들어옵니다. 홈에 보석·각인석을 박고, 각인석 조합으로 진언을 완성해 보세요.</p></div><div class="help-step"><strong>04. 나만의 전직과 외형</strong><p>20·40레벨에 전직을 선택하세요. 레벨업 포인트로 스킬을 강화하고, 프로필의 색상 버튼으로 무료 코스튬을 적용하세요.</p></div></div><p class="modal-description">10초마다 자동 저장됩니다. 창을 닫거나 숨긴 동안에는 최근 귀환 입고량을 기준으로 재료를 60% 효율, 최대 8시간까지 정산해 드립니다(골드·경험치 제외). ${!saveAvailable?'현재 브라우저 저장이 불가능하니 파일로 내보내세요.':''}${saveLoadError?'기존 저장 파일을 읽지 못해 보호 중입니다. 파일을 불러오거나 새 게임을 선택하세요.':''}</p>`,`<button class="small-button" data-action="export">저장 파일 내보내기</button><button class="small-button" data-action="import">불러오기</button><button class="small-button" data-action="new-game">새 게임</button><button class="primary-button" data-action="close">영업 계속하기</button>`);}
+function help(){$('hero-modal').close();openModal('던전 한가운데, 오늘도 정상 영업.',`<p class="modal-description">당신은 편의점 주인입니다. 용사들의 전투는 자동으로, 성장의 방향은 당신의 손으로.</p><div class="help-steps"><div class="help-step"><strong>01. 사냥은 용사에게</strong><p>지도는 두 손가락으로 벌려 확대하고(데스크톱은 휠) 끌어서 이동합니다. 액트 버튼과 미니맵으로 이동하세요. 체력이 낮거나 전리품이 쌓이면 마트로 돌아와 무료로 회복합니다. 사망 시 10초 후 부활합니다.</p></div><div class="help-step"><strong>02. 전리품과 제작</strong><p>일반·매직·레어 장비는 제작소에서 무작위 등급과 옵션으로 만듭니다. 사냥에서는 세트·유니크 장비만 낮은 확률로 떨어집니다. 빛기둥을 눌러 획득하거나 5분 뒤 자동 입고되며, 창고가 가득 차면 지도에 남습니다. 재료는 용사가 귀환할 때 입고됩니다. 도감에서 세트 구성과 유니크 옵션을 확인하세요.</p></div><div class="help-step"><strong>03. 장비창은 격자</strong><p>용사마다 무기칸·방어구칸·장신구칸 크기가 다릅니다. 창고의 장비를 격자에 놓는 순간 효과가 나고, 처음 놓을 때 용사 골드가 마트 운영금으로 들어옵니다. 홈에 보석·각인석을 박고, 각인석 조합으로 진언을 완성해 보세요.</p></div><div class="help-step"><strong>04. 나만의 전직과 외형</strong><p>20·40레벨에 전직을 선택하세요. 레벨업 포인트로 스킬을 강화하고, 프로필의 색상 버튼으로 무료 코스튬을 적용하세요.</p></div></div><p class="modal-description">10초마다 자동 저장됩니다. 창을 닫거나 숨긴 동안에는 최근 귀환 입고량을 기준으로 재료를 60% 효율, 최대 8시간까지 정산해 드립니다(골드·경험치 제외). ${!saveAvailable?'현재 브라우저 저장이 불가능하니 파일로 내보내세요.':''}${saveLoadError?'기존 저장 파일을 읽지 못해 보호 중입니다. 파일을 불러오거나 새 게임을 선택하세요.':''}</p>`,`<button class="small-button" data-action="export">저장 파일 내보내기</button><button class="small-button" data-action="import">불러오기</button><button class="small-button" data-action="new-game">새 게임</button><button class="primary-button" data-action="close">영업 계속하기</button>`);}
 
 document.addEventListener('click',event=>{
   const b=event.target.closest('[data-action]');if(!b||b.disabled)return;
   const h=selectedHero(),a=b.dataset.action;
   if(a==='view'){if(b.dataset.view==='town')townMode='warehouse';setView(b.closest('#nav')&&b.dataset.view===view?'world':b.dataset.view);}
-  if(a==='town-mode'){townMode=b.dataset.mode;if(view!=='town'){$('hero-modal').close();setView('town');}else{renderer.editing=townMode==='edit';renderer.editGhost=null;if(townMode==='edit')renderer.focus(1808,1200,.72);$('page-title').textContent=townMode==='edit'?'마을 편집':'마을';$('page-description').textContent=townMode==='edit'?'시설을 고르고 지도에서 위치를 누르세요.':'창고의 장비를 눌러 확인하고 선택 용사에게 배치하세요.';renderTown();}}
+  if(a==='town-mode'){if(!['warehouse','workshop','edit'].includes(b.dataset.mode))return;townMode=b.dataset.mode;setView('town');}
   if(a==='profile')openProfile();
   if(a==='profile-tab'){if(!$('hero-modal').open)openProfile(b.dataset.tab);else setProfileTab(b.dataset.tab);}
   if(a==='profile-prev'||a==='profile-next'){const i=state.heroes.findIndex(h=>h.id===selected),tab=profileTab;selected=state.heroes[(i+(a==='profile-next'?1:state.heroes.length-1))%state.heroes.length].id;previewSkillId=null;signature='';renderUI(true);setProfileTab(tab);}
@@ -231,8 +238,8 @@ document.addEventListener('click',event=>{
   if(a==='zone'){selectedZone=Number(b.dataset.zone);{const z=ZONES[selectedZone];renderer.focus(z.x,z.y-32,1);updateCameraChrome();}renderActs();}
   if(a==='spawn-rate')result(setSpawnRate(state,Number(b.dataset.zone),Number(b.dataset.value)));
   if(a==='assign')result(assignZone(state,h,Number(b.dataset.zone)));
+  if(a==='codex-tab'){codexTab=b.dataset.tab;renderBestiary();}
   if(a==='save')save(true);
-  if(a==='speed'){speed=Number(b.dataset.value)===2?2:1;state.speed=speed;renderUI();save();}
   if(a==='focus-drop'){const d=state.fieldDrops.find(d=>d.id===b.dataset.id);if(d){$('hero-modal').close();setView('world');renderer.focus(d.x,d.y-20,1.5);updateCameraChrome();}}
   if(a==='pickup'){const r=pickupFieldDrop(state,b.dataset.id);result(r);if(r.ok)showPickup(r.item);}
   if(a==='facility')result(upgradeMart(state,b.dataset.id));
@@ -255,15 +262,13 @@ document.addEventListener('click',event=>{
   if(a==='camera-arrival'){renderer.focus(ARRIVAL.x,ARRIVAL.y-96,1);updateCameraChrome();}
   if(a==='camera-fit'){renderer.overview();updateCameraChrome();}
   if(a==='camera-hero'){if(renderer.followId)renderer.followId=null;else renderer.focusHero(h,true);updateCameraChrome();}
-  if(a==='camera-in'||a==='camera-out'){renderer.zoom(renderer.camera.zoom*(a==='camera-in'?1.3:1/1.3));updateCameraChrome();}
-  if(a==='expand-map'){setView('world');document.body.classList.toggle('map-expanded');requestAnimationFrame(()=>{renderer.resize();updateCameraChrome();});}
   if(a==='close')$('modal').close();
   if(a==='open-gear'){$('modal').close();gearUI.select(b.dataset.id);openProfile('equipment');}
   if(a==='help')help();
   if(a==='export'){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='dungeon-mart-save.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('저장 파일을 내보냈습니다.');}
   if(a==='import'){const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=async()=>{const file=input.files[0];if(!file)return;if(file.size>5_000_000){toast('저장 파일이 너무 큽니다.',true);return;}try{const next=restore(await file.text());if(!next){toast('올바른 Dungeon Mart 저장 파일이 아닙니다.',true);return;}openModal('진행 상황 불러오기','<p class="modal-description">현재 진행 상황을 선택한 파일로 교체합니다.</p>','<button class="small-button" data-action="close">취소</button><button class="primary-button" id="confirm-import">불러오기</button>');$('confirm-import').onclick=()=>{state=next;applyTownLayout(state.town);townUndo=[];selected=state.heroes[0].id;saveLoadError=false;signature='';renderer.home();save();renderUI(true);$('modal').close();toast('진행 상황을 불러왔습니다.');};}catch{toast('저장 파일을 읽지 못했습니다.',true);}};input.click();}
   if(a==='new-game')openModal('새 영업 시작','<p class="modal-description">현재 용사, 장비, 진행 상황이 모두 초기화됩니다. 보관하려면 먼저 저장 파일을 내보내세요.</p>','<button class="small-button" data-action="help">돌아가기</button><button class="primary-button" data-action="confirm-new">초기화하고 시작</button>');
-  if(a==='confirm-new'){state=createGame();townUndo=[];selected=state.heroes[0].id;selectedZone=0;saveLoadError=false;paused=false;speed=1;state.speed=1;signature='';setView('world');renderer.home();updateCameraChrome();save();$('modal').close();toast('새로운 영업을 시작합니다.');}
+  if(a==='confirm-new'){state=createGame();townUndo=[];selected=state.heroes[0].id;selectedZone=0;saveLoadError=false;paused=false;signature='';setView('world');renderer.home();updateCameraChrome();save();$('modal').close();toast('새로운 영업을 시작합니다.');}
 });
 let zoneDrag=null,suppressSelect=false;
 const dropColumnAt=(x,y)=>document.elementFromPoint(x,y)?.closest('[data-drop-zone]')||null;
@@ -291,9 +296,8 @@ $('hero-modal').addEventListener('close',returnProfileViews);
 document.addEventListener('keydown',event=>{if(event.key==='p'&&event.altKey){paused=!paused;toast(paused?'디버그: 일시정지':'디버그: 재개');}if(event.key==='Escape'&&!$('modal').open&&!$('hero-modal').open&&view!=='world')setView('world');});
 const renderer=new WorldRenderer($('world'),$('minimap'));
 function updateCameraChrome(){
-  const zoom=renderer.camera.zoom;$('zoom-label').textContent=`${Math.round(zoom*100)}%`;$('map-location').textContent=renderer.location;
+  const zoom=renderer.camera.zoom;$('map-location').textContent=renderer.location;
   
-  const expanded=document.body.classList.contains('map-expanded');$('expand-map').setAttribute('aria-pressed',String(expanded));
   $('world').dataset.followId=renderer.followId||'';
   $('world').dataset.zoom=String(zoom);$('world').dataset.cameraX=String(renderer.camera.x);$('world').dataset.cameraY=String(renderer.camera.y);
 }
@@ -338,7 +342,7 @@ $('world').addEventListener('keydown',e=>{const k=e.key;if(['+','=','-','ArrowUp
 $('save-icon').innerHTML=icon('save');$('summon-boss').innerHTML=icon('skull');
 window.addEventListener('pagehide',()=>save());
 document.addEventListener('visibilitychange',()=>{last=performance.now();accumulator=0;if(document.hidden){hiddenAt=Date.now();save();}else if(hiddenAt){const r=settleOffline(state,hiddenAt);hiddenAt=null;if(r){signature='';renderUI(true);save();showOffline(r);}}});
-function frame(now){const elapsed=Math.min((now-last)/1000,.15);last=now;if(!paused&&!document.hidden&&!renderer.editing){accumulator+=elapsed*speed;while(accumulator>=.1){tick(state,.1);accumulator-=.1;}}renderer.draw(state,selected,selectedZone);drawPreview(now);updateCameraChrome();uiTimer+=elapsed;saveTimer+=elapsed;if(uiTimer>.65){renderUI();uiTimer=0;}if(saveTimer>10){save();saveTimer=0;}requestAnimationFrame(frame);}
+function frame(now){const elapsed=Math.min((now-last)/1000,.15);last=now;if(!paused&&!document.hidden&&!renderer.editing){accumulator+=elapsed*2;while(accumulator>=.1){tick(state,.1);accumulator-=.1;}}renderer.draw(state,selected,selectedZone);drawPreview(now);updateCameraChrome();uiTimer+=elapsed;saveTimer+=elapsed;if(uiTimer>.65){renderUI();uiTimer=0;}if(saveTimer>10){save();saveTimer=0;}requestAnimationFrame(frame);}
 renderUI(true);requestAnimationFrame(frame);
 if(offlineReport)save();
 if(saveLoadError||!saveAvailable)help();else if(offlineReport)showOffline(offlineReport);else if(state.time<1)setTimeout(()=>toast('첫 영업을 시작합니다. 제작소에서 용사들의 첫 장비를 만들어 보세요.'),900);

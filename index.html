@@ -23,10 +23,9 @@
         <button class="save-button" data-action="save"><span id="save-icon"></span><span id="save-status">자동 저장</span></button>
       </header>
               <canvas id="world" tabindex="0" aria-label="핀치로 확대·축소하고 끌어서 탐색하는 월드 지도"></canvas>
-              <div class="time-controls" id="time-controls"></div><div class="map-topline"><span id="day-label">DAY 01</span></div>
+              <div class="map-topline"><span id="day-label">DAY 01</span></div>
               <div id="boss-hud" class="boss-hud" hidden aria-live="polite"></div>
               <div class="boss-corner"><button data-action="summon-boss" id="summon-boss" class="danger" title="보스 소환" aria-label="보스 소환"></button></div>
-              <div class="map-zoom" aria-label="지도 확대 축소"><button data-action="camera-out" aria-label="지도 축소">−</button><output id="zoom-label" aria-live="polite">100%</output><button data-action="camera-in" aria-label="지도 확대">+</button><button data-action="expand-map" id="expand-map" aria-label="지도 화면 넓히기">⛶</button></div>
               <div class="map-corner" id="map-corner"><span class="map-location-chip"><i class="status-dot"></i> <b id="map-location">던전 마트</b></span><div class="map-shortcuts" aria-label="지도 바로가기"><div class="shortcut-group" id="zone-shortcuts"></div></div><div class="minimap-wrap"><span>WORLD MAP</span><canvas id="minimap" width="180" height="140" aria-label="전체 월드 미니맵. 눌러서 이동"></canvas></div></div>
               <div class="map-hint">핀치·휠: 확대/축소 · 끌기: 이동 · 몬스터 누르기: 정보</div>
               <div id="drop-badges" class="drop-badges" aria-label="획득 대기 중인 전설 드롭"></div>
@@ -44,11 +43,14 @@
           <div class="roster-footer"><span class="status-dot"></span>모든 전투와 회복은 자동으로 진행됩니다.</div>
         </aside>
           <div id="expedition-view" class="view scroll-view" hidden aria-label="사냥터 배정 보드"></div>
-          <div id="workshop-view" class="view scroll-view" hidden></div>
           <div id="skills-view" class="view scroll-view" hidden></div>
-          <div id="town-view" class="view scroll-view" hidden></div>
+          <div id="town-view" class="view scroll-view" hidden>
+            <div id="town-tabs" class="town-tabs" role="group" aria-label="마을 메뉴"></div>
+            <div id="town-warehouse"></div>
+            <div id="workshop-view" hidden></div>
+            <div id="town-edit" hidden></div>
+          </div>
           <div id="bestiary-view" class="view scroll-view" hidden></div>
-          <div class="activity-panel view scroll-view" id="journal-view" hidden><div class="activity-heading"><span class="eyebrow">MART JOURNAL</span><span>최근 소식</span><span id="kill-counter"></span></div><div id="activity-log"></div></div>
         </section>
 
       </main>

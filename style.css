@@ -423,3 +423,33 @@ button:active:not(:disabled){filter:brightness(1.15)}
 @media(max-width:720px){.boss-corner{left:8px;top:120px}}
 @media(max-height:550px){.boss-corner{top:70px}}
 @media(pointer:coarse),(max-width:720px){.map-frame .boss-corner #summon-boss{min-height:44px;padding:8px 12px}}
+
+/* 단계 해금 안내는 모바일에서도 표시한다. */
+.diff-stage:disabled{opacity:.45}
+.diff-tier,.diff-stage{min-height:44px;min-width:44px}
+.diff-stages,.diff-tiers{gap:8px}
+.diff-hint{display:block;font-size:13px;line-height:1.5}
+
+.craft-random-note{font-size:13px;line-height:1.5;color:#c3c9b3}
+
+.codex-tabs{display:flex;gap:8px;margin-bottom:12px}.codex-tabs button{flex:1;min-width:44px;min-height:44px;font-size:14px;padding:8px;background:#233632;color:#dce4ca;border:1px solid #647653}.codex-tabs button.active{background:#41583a;border-color:#c3cd95}
+.codex-note,.codex-content{font-size:13px;line-height:1.6;color:#d3dec8}.equipment-codex{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;align-items:start}.codex-entry{border:1px solid #647653;background:#233632;min-width:0}.codex-entry summary{min-height:52px;padding:12px;cursor:pointer;font-size:14px;touch-action:manipulation}.codex-entry summary span{display:block;font-size:13px;color:#cad4be;margin-top:4px}.set-entry summary strong{color:#8cde8b}.unique-entry summary strong{color:#e4c978}.codex-content{padding:0 12px 12px;overflow-wrap:anywhere}.codex-content ul{list-style:none;padding:0}.codex-content li{padding:10px 0;border-bottom:1px solid #4a5c46}.codex-content p{font-size:13px;margin:6px 0}.codex-status{display:block;color:#b6c49f;font-size:13px}.codex-content h4{margin:12px 0 6px;font-size:14px}
+
+.town-tabs{display:flex;gap:8px;margin-bottom:12px;position:sticky;top:0;z-index:2;background:#20382e;padding:4px 0}.town-tabs button{flex:1;min-width:44px;min-height:44px;font-size:14px;padding:8px;background:#233632;color:#dce4ca;border:1px solid #647653}.town-tabs button.active{background:#41583a;border-color:#c3cd95}
+#workshop-view{overflow:visible}
+
+/* 긴 이름과 짧은 조작 버튼이 서로 밀리지 않도록 한다. */
+@media(max-width:720px){
+ #town-view .form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+ #town-view .form-row label,#town-view .form-row select{min-width:0;width:100%;max-width:100%}
+ #town-view .gear-craft h4 small,#town-view .gear-drawer h4 small{display:block;font-size:13px;line-height:1.5;margin-top:4px}
+ #town-view .wh-head h4 small{display:block;font-size:13px}
+ #town-view .wh-controls{display:flex;flex-wrap:wrap;max-width:100%}
+ #town-view .wh-controls select{min-width:0;max-width:100%}
+ #town-view .detail-head{min-width:0;align-items:flex-start}
+ #town-view .detail-head>div{min-width:0;overflow-wrap:anywhere}
+ #town-view .detail-actions{display:flex;flex-wrap:wrap;gap:8px}
+ #town-view .cost-row>.primary-button,#town-tabs button,.bottom-nav .nav-button span{white-space:nowrap;flex-shrink:0}
+ #town-view .gear-detail small,#town-view .craft-note{font-size:13px;line-height:1.5}
+ .town-head p{font-size:13px}
+}

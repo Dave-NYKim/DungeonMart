@@ -282,14 +282,18 @@ export function describeStat(key, value) {
 const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
 const between = (min, max, rng) => min + rng() * (max - min);
 const roundStat = (key, v) => STAT_INFO[key]?.[1] === 'pct' || key === 'weightMult' ? Math.round(v * 1000) / 1000 : Math.round(v);
-export const DROP_TABLE = { normal: [.70, .23, .067, .002, .001], elite: [.42, .40, .165, .008, .007], boss: [.15, .35, .25, .15, .10] };
-export function rollGrade(kind, findPct = 0, pity = 0, rng = Math.random) {
-  const [n, m, r, st, u] = DROP_TABLE[kind] || DROP_TABLE.normal;
-  const bonus = Math.max(0, pity - 300) * .0001, magicUp = Math.min(3, findPct), rareUp = Math.min(3, findPct) * .3;
-  const pSet = st * (1 + rareUp) + bonus / 2, pUnique = u * (1 + rareUp) + bonus / 2, pRare = r * (1 + magicUp), pMagic = m * (1 + magicUp);
+// Per kill, before the capped item-find bonus. No pity or guaranteed drops.
+export const DROP_TABLE = { normal: { set: .00002, unique: .00001 }, elite: { set: .0008, unique: .0007 }, boss: { set: .015, unique: .01 } };
+export const CRAFT_GRADES = { normal: .6, magic: .3, rare: .1 };
+export function rollCraftGrade(rng = Math.random) {
   const roll = rng();
-  if (roll < pUnique) return 'unique'; if (roll < pUnique + pSet) return 'set'; if (roll < pUnique + pSet + pRare) return 'rare'; if (roll < pUnique + pSet + pRare + pMagic) return 'magic';
-  return 'normal';
+  return roll < CRAFT_GRADES.normal ? 'normal' : roll < CRAFT_GRADES.normal + CRAFT_GRADES.magic ? 'magic' : 'rare';
+}
+export function rollDropGrade(kind, findPct = 0, rng = Math.random) {
+  const rates = DROP_TABLE[kind] || DROP_TABLE.normal, mult = 1 + Math.max(0, Math.min(3, findPct)) * .3, roll = rng();
+  if (roll < rates.unique * mult) return 'unique';
+  if (roll < (rates.unique + rates.set) * mult) return 'set';
+  return null;
 }
 function rollTier(ilvl, rng) {
   if (ilvl >= TIER_LEVEL[3] && rng() < .5) return 3;
@@ -337,7 +341,7 @@ function finish(item, rng) {
   return item;
 }
 export function generateItem({ ilvl = 1, grade, kind = 'normal', classId = null, findPct = 0, pity = 0, codex = {}, baseKey = null, tier = null, rng = Math.random, source = 'drop' } = {}) {
-  grade ||= rollGrade(kind, findPct, pity, rng);
+  grade ||= rollCraftGrade(rng);
   if (grade === 'set') {
     const own = Object.entries(SETS).filter(([, s]) => s.ilvl <= ilvl && s.classId === classId), any = Object.entries(SETS).filter(([, s]) => s.ilvl <= ilvl);
     const pool = own.length && rng() < .7 ? own : any;
@@ -369,7 +373,7 @@ export function generateItem({ ilvl = 1, grade, kind = 'normal', classId = null,
     const chance = grade === 'normal' ? (source === 'craft' ? .5 : .25) : .15, max = grade === 'normal' ? b.sockets : Math.min(2, b.sockets);
     if (b.sockets && rng() < chance) { let n = 1; while (n < max && rng() < .45) n++; item.sockets = n; item.inserts = Array(n).fill(null); }
   }
-  if (b.type === 'charm' && grade === 'normal') item.grade = 'magic';
+  if (b.type === 'charm' && grade === 'normal' && source !== 'craft') item.grade = 'magic';
   const count = item.grade === 'magic' ? (b.type === 'charm' ? (b.key === 'charmS' ? 1 : b.key === 'charmM' ? 1 + (rng() < .5 ? 1 : 0) : 2 + (rng() < .5 ? 1 : 0)) : 1 + (rng() < .45 ? 1 : 0)) : item.grade === 'rare' ? 3 + (rng() < .5 ? 1 : 0) + (rng() < .35 ? 1 : 0) + (rng() < .2 ? 1 : 0) : 0;
   item.affixes = rollAffixes(b, ilvl, count, rng);
   if (item.grade !== 'normal' && !item.affixes.length) item.grade = 'normal';

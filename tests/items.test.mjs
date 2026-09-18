@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES } from '../src/data.js';
-import { BASES, AFFIXES, RUNES, RUNE_LIST, MANTRAS, SETS, UNIQUES, GEMS, generateItem, rollGrade, rollGrid, effectiveGrid, gridCells, fits, findSpot, activation, itemStats, mantraFor, weightOf, priceOf, itemMatches, describeStat } from '../src/items.js';
+import { BASES, AFFIXES, RUNES, RUNE_LIST, MANTRAS, SETS, UNIQUES, GEMS, generateItem, rollDropGrade, rollCraftGrade, DROP_TABLE, rollGrid, effectiveGrid, gridCells, fits, findSpot, activation, itemStats, mantraFor, weightOf, priceOf, itemMatches, describeStat } from '../src/items.js';
 import { createGame, tick, craft, autoPlace, placeItem, rotateItem, unplaceItem, insertSocket, combine, pickupFieldDrop, statsOf, serialize, restore, warehouseCapacity, warehouseUsed, upgradeMart, gearBonus, FIELD_DROP_TIME } from '../src/engine.js';
 
 const seeded = seed => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -36,12 +36,16 @@ test('generator respects grade rules, affix counts, item level locks and produce
   }
   const low = generateItem({ ilvl: 1, grade: 'unique', rng });
   assert.ok(['unique'].includes(low.grade) && UNIQUES.find(u => u.id === low.uniqueId).ilvl <= 1 || low.grade === 'rare');
-  const counts = { normal: 0, magic: 0, rare: 0, set: 0, unique: 0 };
-  for (let i = 0; i < 20000; i++) counts[rollGrade('normal', 0, 0, rng)]++;
-  assert.ok(counts.normal > counts.magic && counts.magic > counts.rare && counts.rare > counts.set + counts.unique);
-  assert.ok(counts.set + counts.unique < 150, `${counts.set + counts.unique} 세트·유니크는 드물어야 한다`);
-  let pityHits = 0; for (let i = 0; i < 20000; i++) if (['set', 'unique'].includes(rollGrade('normal', 0, 2300, rng))) pityHits++;
-  assert.ok(pityHits > counts.set + counts.unique * 2, '소프트 천장이 확률을 올린다');
+  const counts = { normal: 0, magic: 0, rare: 0 };
+  for(let i=0;i<20000;i++) counts[rollCraftGrade(rng)]++;
+  assert.ok(counts.normal>11500&&counts.normal<12500);assert.ok(counts.magic>5500&&counts.magic<6500);assert.ok(counts.rare>1700&&counts.rare<2300);
+  for(const [kind,rates] of Object.entries(DROP_TABLE)){
+    assert.equal(rollDropGrade(kind,0,()=>0),'unique');
+    assert.equal(rollDropGrade(kind,0,()=>rates.unique),'set');
+    assert.equal(rollDropGrade(kind,0,()=>rates.unique+rates.set),null);
+    assert.equal(rollDropGrade(kind,999,()=>.99),null,'find bonus cannot guarantee drops');
+  }
+
 });
 
 test('grids are class weighted, grow with hero grade and promotion, and enforce fit, rotation and hand rules', () => {
@@ -67,16 +71,16 @@ test('grids are class weighted, grow with hero grade and promotion, and enforce 
 
 test('placing items applies stats immediately, respects weight limits and purchases once', () => {
   const s = rich(), h = s.heroes.find(h => h.classId === 'sorceress'); h.grid = { weapon: { w: 2, h: 3 }, armor: { w: 4, h: 5 }, accessory: { w: 2, h: 3 } };
-  const staff = craft(s, 'staff', 'normal').item, robe = craft(s, 'robe', 'normal').item, ring = craft(s, 'ring', 'magic').item;
+  const staff = craft(s, 'staff').item, robe = craft(s, 'robe').item, ring = craft(s, 'ring').item;
   const before = statsOf(h, s);
   assert.ok(placeItem(s, h, staff.id, 'weapon', 0, 0).ok); assert.ok(statsOf(h, s).atk > before.atk); assert.ok(statsOf(h, s).spell > before.spell);
   assert.equal(placeItem(s, h, robe.id, 'weapon', 0, 0).ok, false); assert.ok(autoPlace(s, h, robe.id).ok); assert.ok(statsOf(h, s).def > before.def);
   assert.ok(autoPlace(s, h, ring.id).ok); assert.ok(ring.purchased); const gold = h.gold; assert.ok(autoPlace(s, h, ring.id).ok); assert.equal(h.gold, gold);
   assert.equal(rotateItem(s, h, ring.id).ok, false);
-  const second = craft(s, 'robe', 'normal').item; assert.ok(autoPlace(s, h, second.id).ok); assert.equal(gearBonus(h, s).act.get(second.id).active, false, '몸 부위 중복은 비활성');
+  const second = craft(s, 'robe').item; assert.ok(autoPlace(s, h, second.id).ok); assert.equal(gearBonus(h, s).act.get(second.id).active, false, '몸 부위 중복은 비활성');
   // 무게: 판금 갑옷 여러 벌은 소서리스 용량(50 + 레벨)을 넘긴다
   h.placed = []; s.warehouse.push(staff.id, robe.id, ring.id, second.id); h.grid.armor = { w: 6, h: 8 }; h.level = 10; // 용량 60: 판금 2벌(72~80kg)은 초과 페널티, 3벌은 150% 초과
-  const plates = [0, 1, 2].map(() => craft(s, 'plate', 'normal').item);
+  const plates = [0, 1, 2].map(() => craft(s, 'plate').item);
   assert.ok(autoPlace(s, h, plates[0].id).ok); assert.equal(statsOf(h, s).haste, 0);
   assert.ok(autoPlace(s, h, plates[1].id).ok); assert.ok(statsOf(h, s).load > 1 && statsOf(h, s).haste < 0, '적재 초과 페널티');
   assert.equal(autoPlace(s, h, plates[2].id).ok, false, '150% 초과는 배치 불가');
@@ -117,10 +121,12 @@ test('set and unique pieces come from field drops, beams expire into the warehou
   s.drawer.gems['diamond:4'] = 2; assert.ok(combine(s, 'tierUp', { id: pieces[0].id }).ok); assert.equal(pieces[0].tier, 2); assert.ok(pieces[0].name.includes('거인 도끼'));
 });
 
-test('hunting drops equipment into bags, deposits into the warehouse, auto-salvages overflow and survives save round trips', () => {
+test('hunting never produces ordinary equipment, preserves crafted gear and save round trips', () => {
   const s = createGame(); for (const h of s.heroes) h.level = 10;
   for (let i = 0; i < 4000; i++) tick(s, .1);
-  assert.ok(Object.keys(s.items).length > 0, '드롭이 발생한다'); assert.ok(s.warehouse.length > 0);
+  assert.ok(Object.values(s.items).every(i=>['set','unique'].includes(i.grade)));
+  assert.ok(s.heroes.every(h=>h.bagItems.length===0),'ordinary equipment never enters hunting bags');
+  const made=craft(s,'leather');assert.ok(made.ok);assert.ok(s.warehouse.includes(made.item.id));
   assert.ok(warehouseUsed(s) <= warehouseCapacity(s));
   for (const h of s.heroes) for (const id of h.bagItems) assert.ok(s.items[id]);
   const loaded = restore(serialize(s)); assert.ok(loaded); assert.deepEqual(Object.keys(loaded.items).sort(), Object.keys(s.items).sort());
@@ -135,21 +141,67 @@ test('weight and price helpers follow tier and grade multipliers', () => {
   const m = generateItem({ ilvl: 50, grade: 'rare', baseKey: 'plate', tier: 3, rng }); assert.ok(priceOf(m) > priceOf(b));
 });
 
-test('boss raids have a cooldown, drop three beams with generous set/unique odds, and bulk salvage yields relic essence', async () => {
-  const { summonBoss, RAID_COOLDOWN, raidCooldownLeft, BOSS_DROPS, salvageAll } = await import('../src/engine.js');
+test('boss raids keep cooldowns without guaranteed loot, and bulk salvage yields relic essence', async (t) => {
+  const { summonBoss, RAID_COOLDOWN, raidCooldownLeft, salvageAll } = await import('../src/engine.js');
   const s = createGame(); s.treasury = 5000; for (const h of s.heroes) { h.level = 40; h.hp = statsOf(h, s).hp; }
+  t.mock.method(Math, 'random', ()=>.5);
+  s.pity=999999;s.bossPity=999999;
   const r = summonBoss(s); assert.ok(r.ok); assert.equal(raidCooldownLeft(s), RAID_COOLDOWN);
   r.boss.hp = 1; s.heroes[0].x = r.boss.x; s.heroes[0].y = r.boss.y; s.heroes[0].state = 'hunt'; s.heroes[0].zone = 3;
   for (let i = 0; i < 60 && s.raid; i++) tick(s, .1);
   assert.equal(s.raid, null); assert.equal(s.bossKills, 1);
-  const beams = s.fieldDrops.filter(d => s.items[d.id].origin === 'boss'); assert.equal(beams.length, BOSS_DROPS, '보스 전리품 3개는 빛기둥');
-  assert.ok(beams.some(d => s.items[d.id].grade === 'unique'), '첫 보스 처치는 유니크 확정');
+  const beams = s.fieldDrops.filter(d => s.items[d.id].origin === 'boss'); assert.equal(beams.length,0,'no first-kill or old pity guarantee');
+  t.mock.restoreAll();
   assert.equal(summonBoss(s).ok, false, '쿨다운 중 재소환 불가'); s.time += RAID_COOLDOWN; assert.ok(summonBoss(s).ok);
-  const rng = seeded(4); let hits = 0; for (let i = 0; i < 3000; i++) if (['set', 'unique'].includes(rollGrade('boss', 0, 0, rng))) hits++;
-  assert.ok(hits > 500 && hits < 1000, `보스 개당 세트·유니크 약 25% (${hits}/3000)`);
+  const rng = seeded(4); let hits = 0; for (let i = 0; i < 3000; i++) if (['set', 'unique'].includes(rollDropGrade('boss', 0, rng))) hits++;
+  assert.ok(hits > 45 && hits < 110, `보스 처치당 세트·유니크 약 2.5% (${hits}/3000)`);
   const u = give(s, generateItem({ ilvl: 40, grade: 'unique', rng })); const before = s.materials.relic || 0;
   const salv = (await import('../src/engine.js')).salvage(s, u.id); assert.ok(salv.ok); assert.equal(s.materials.relic, before + 1, '유니크 분해는 유물의 정수 1');
   for (const g of ['normal', 'magic', 'rare']) give(s, generateItem({ ilvl: 10, grade: g, baseKey: 'leather', rng }));
   assert.equal(salvageAll(s, 'unique').ok, false); const iron = s.materials.iron; assert.ok(salvageAll(s, 'normal').ok); assert.ok(s.materials.iron > iron); assert.ok(!s.warehouse.some(id => s.items[id].grade === 'normal'));
   assert.ok(restore(serialize(s)));
+});
+
+test('crafting rolls grades and options for one fixed price, with no set or unique results',()=>{
+ const s=rich(),rng=seeded(77),seen=new Set(),options=new Set();s.upgrades.forge=4;
+ for(let i=0;i<100;i++){
+  const iron=s.materials.iron,r=craft(s,'sword1h',1,rng);assert.ok(r.ok);seen.add(r.item.grade);options.add(JSON.stringify(r.item.affixes));
+  assert.equal(iron-s.materials.iron,8);assert.ok(['normal','magic','rare'].includes(r.item.grade));
+  if(r.item.grade==='magic')assert.ok(r.item.affixes.length>=1);
+  if(r.item.grade==='rare')assert.ok(r.item.affixes.length>=3);
+  const salvageId=r.item.id;s.warehouse=s.warehouse.filter(id=>id!==salvageId);delete s.items[salvageId];
+ }
+ assert.deepEqual([...seen].sort(),['magic','normal','rare']);assert.ok(options.size>20);
+ const r=craft(s,'charmS',1,()=>.5);assert.ok(r.ok);assert.equal(r.item.grade,'normal','charm grade follows the same craft odds');
+ const before=s.materials.iron;assert.equal(craft(s,'sword1h','rare').ok,false);assert.equal(s.materials.iron,before);
+});
+
+test('equipment codex records pickup and auto-storage, survives salvage, and migrates owned gear only',async()=>{
+ const {salvage}=await import('../src/engine.js');
+ const s=createGame(),rng=seeded(90);
+ const drop=grade=>{const item=generateItem({ilvl:40,grade,rng});item.id=`i${s.nextId++}`;s.items[item.id]=item;s.fieldDrops.push({id:item.id,zone:0,x:100,y:100,expires:s.time+FIELD_DROP_TIME});return item;};
+ const set=drop('set'),unique=drop('unique');
+ assert.ok(pickupFieldDrop(s,set.id).ok);assert.equal(s.codex.setPieces[`${set.setId}:${set.setIndex}`],1);
+ s.fieldDrops.find(d=>d.id===unique.id).expires=0;tick(s,.1);assert.equal(s.codex.uniques[unique.uniqueId],1);
+ assert.ok(salvage(s,set.id).ok);assert.ok(salvage(s,unique.id).ok);
+ let loaded=restore(serialize(s));assert.ok(loaded);assert.equal(loaded.codex.setPieces[`${set.setId}:${set.setIndex}`],1);assert.equal(loaded.codex.uniques[unique.uniqueId],1);
+ const owned=give(s,generateItem({ilvl:40,grade:'set',rng})),waiting=drop('unique');
+ const old=JSON.parse(serialize(s));delete old.codex.setPieces;old.codex.uniques={};
+ loaded=restore(JSON.stringify(old));assert.ok(loaded);assert.equal(loaded.codex.setPieces[`${owned.setId}:${owned.setIndex}`],1);assert.equal(loaded.codex.uniques[waiting.uniqueId],undefined,'uncollected beams do not count');
+ const again=restore(serialize(loaded));assert.deepEqual(again.codex,loaded.codex);
+ old.codex.setPieces={'bad:0':1};assert.equal(restore(JSON.stringify(old)),null);
+});
+
+test('warehouse capacity counts items regardless of size for crafting, equipment return, and loot',async()=>{
+ const {storeItem}=await import('../src/engine.js');
+ const s=rich(),h=s.heroes[0];
+ const worn=craft(s,'leather',1,()=>.5).item;assert.ok(autoPlace(s,h,worn.id).ok);assert.equal(warehouseUsed(s),0);
+ for(let i=0;i<79;i++)assert.ok(craft(s,i%2?'plate':'ring',1,()=>.5).ok);
+ assert.equal(warehouseUsed(s),79);assert.ok(unplaceItem(s,h,worn.id).ok);assert.equal(warehouseUsed(s),80);
+ const iron=s.materials.iron;assert.equal(craft(s,'ring').ok,false);assert.equal(s.materials.iron,iron);
+ assert.ok(autoPlace(s,h,worn.id).ok);assert.ok(craft(s,'plate',1,()=>.5).ok);assert.equal(unplaceItem(s,h,worn.id).ok,false,'full warehouse blocks return');
+ const rng=seeded(72),special=generateItem({ilvl:40,grade:'set',rng});special.id=`i${s.nextId++}`;s.items[special.id]=special;
+ const oldIds=[...s.warehouse];assert.ok(storeItem(s,special.id));assert.equal(warehouseUsed(s),80);assert.equal(oldIds.filter(id=>!s.items[id]).length,1,'one item removed for any size set item');
+ const loaded=restore(serialize(s));assert.ok(loaded);assert.deepEqual(loaded.warehouse,s.warehouse);assert.equal(warehouseUsed(loaded),80);
+ s.treasury=1000;assert.ok(upgradeMart(s,'warehouse').ok);assert.equal(warehouseCapacity(s),100);assert.ok(unplaceItem(s,h,worn.id).ok);
 });

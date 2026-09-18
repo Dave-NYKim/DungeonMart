@@ -76,15 +76,15 @@ export const ZONES = [
 // Names / act distribution: Blizzard's Arreat Summit. Art and tuning are original prototype data.
 // Difficulty ladder: three tiers × ten stages. Nightmare 1 must clearly out-muscle Normal 10.
 export const DIFFICULTIES = [
-  { id: 'normal', name: '노멀', en: 'NORMAL', mult: 1, reward: 1, boss: 1, color: '#9baa83' },
-  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 8, reward: 3, boss: 1.6, color: '#a982c9' },
-  { id: 'hell', name: '헬', en: 'HELL', mult: 60, reward: 8, boss: 2.6, color: '#d8705a' }
+  { id: 'normal', name: '노멀', en: 'NORMAL', mult: 1, reward: 1, bossHp: 12000, bossAtk: 90, color: '#9baa83' },
+  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 20, reward: 3, bossHp: 240000, bossAtk: 900, color: '#a982c9' },
+  { id: 'hell', name: '헬', en: 'HELL', mult: 400, reward: 8, bossHp: 4800000, bossAtk: 6000, color: '#d8705a' }
 ];
 export const STAGES = 10;
-export const stageMult = stage => 1 + (stage - 1) * .3;
+export const stageMult = stage => 1.25 ** (stage - 1);
 // Within one difficulty the acts climb gently: ACT IV is stronger than ACT I but not by orders of magnitude.
 export const ACT_FACTORS = { hp: [1, 1.3, 1.7, 2.2], atk: [1, 1.25, 1.55, 1.9] };
-export const BASE_MONSTER = { hp: 70, atk: 9 };
+export const BASE_MONSTER = { hp: 90, atk: 14 };
 export const BOSS_TYPE = 'ashlord';
 export const MONSTERS = {
   ashlord: { name: '재의 군주 바라칸', en: 'Barakhan, Lord of Cinders', shape: 'boss', color: '#d4683a', trait: 'boss', hp: 14, speed: 24, range: 36 },

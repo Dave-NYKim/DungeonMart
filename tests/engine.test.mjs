@@ -15,19 +15,19 @@ test('automatic hunting yields XP, personal gold, shared materials and return tr
 });
 test('crafting consumes materials and first placement purchases exactly once',()=>{
   const s=rich(),h=s.heroes[0],startAtk=statsOf(h,s).atk;
-  const r=craft(s,weaponFor(h),'normal');assert.ok(r.ok,r.message);assert.equal(s.materials.iron,9992);assert.ok(s.warehouse.includes(r.item.id));
+  const r=craft(s,weaponFor(h),1,()=>.5);assert.ok(r.ok,r.message);assert.equal(s.materials.iron,9992);assert.ok(s.warehouse.includes(r.item.id));
   const before=s.treasury,price=r.item.price;assert.ok(price>0);assert.ok(autoPlace(s,h,r.item.id).ok);assert.equal(h.gold,100-price);assert.equal(s.treasury,before+price);assert.ok(statsOf(h,s).atk>startAtk);
   const p=h.placed[0];assert.ok(placeItem(s,h,r.item.id,p.zone,p.x,p.y,p.rotated).ok);assert.equal(h.gold,100-price);assert.equal(s.treasury,before+price);
   assert.equal(salvage(s,r.item.id).ok,false);
   assert.ok(unplaceItem(s,h,r.item.id).ok);assert.ok(statsOf(h,s).atk<=startAtk+.001);assert.ok(salvage(s,r.item.id).ok);assert.ok(s.materials.iron>9992);
 });
 test('owned shared armor transfers between heroes without charging twice',()=>{
-  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'leather','normal').item;
+  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'leather',1,()=>.5).item;
   assert.ok(autoPlace(s,a,item.id).ok);const bank=s.treasury,bGold=b.gold;
   assert.ok(autoPlace(s,b,item.id).ok);assert.equal(a.placed.length,0);assert.equal(b.placed[0].id,item.id);assert.equal(b.gold,bGold);assert.equal(s.treasury,bank);
 });
 test('invalid or unaffordable transactions leave state unchanged',()=>{
-  const s=createGame();s.materials.iron=0;const before=s.materials.iron;assert.equal(craft(s,'axe2h','rare').ok,false);assert.equal(s.materials.iron,before);assert.equal(craft(s,'nope','normal').ok,false);
+  const s=createGame();s.materials.iron=0;const before=s.materials.iron;assert.equal(craft(s,'axe2h').ok,false);assert.equal(s.materials.iron,before);assert.equal(craft(s,'nope').ok,false);
   assert.equal(assignZone(s,s.heroes[0],3).ok,false);assert.equal(s.heroes[0].zone,0);
   s.treasury=0;assert.equal(recruit(s,'amazon').ok,false);assert.equal(upgradeMart(s,'forge').ok,false);
 });
@@ -58,7 +58,7 @@ test('recruitment caps the roster at twenty and all four acts unlock by level',(
 test('every final class can simulate combat in every act without invalid state',()=>{
   for(const c of CLASSES)for(const branch of c.branches)for(const final of branch.children){
     const s=rich(),h=s.heroes.find(h=>h.classId===c.id);h.level=40;h.gold=10000;promote(s,h,branch.id);promote(s,h,final.id);
-    for(const base of [weaponFor(h),'chain','amulet'])assert.ok(autoPlace(s,h,craft(s,base,'rare').item.id).ok);
+    for(const base of [weaponFor(h),'chain','amulet'])assert.ok(autoPlace(s,h,craft(s,base).item.id).ok);
     s.heroes=[h];
     for(const z of ZONES){h.zone=z.id;h.x=z.x;h.y=z.y;h.state='hunt';h.hp=statsOf(h,s).hp;
       for(let i=0;i<400;i++)tick(s,.1);
@@ -67,7 +67,7 @@ test('every final class can simulate combat in every act without invalid state',
   }
 });
 test('saved progression round-trips with equipment, costumes and skills intact',()=>{
-  const s=rich(),h=s.heroes[0];h.level=20;promote(s,h,'berserker');h.costume.palette='crimson';autoPlace(s,h,craft(s,weaponFor(h),'magic').item.id);
+  const s=rich(),h=s.heroes[0];h.level=20;promote(s,h,'berserker');h.costume.palette='crimson';autoPlace(s,h,craft(s,weaponFor(h),1,()=>.5).item.id);
   const loaded=restore(serialize(s));assert.ok(loaded);assert.deepEqual(JSON.parse(serialize(loaded)).heroes,JSON.parse(serialize(s)).heroes);assert.deepEqual(loaded.items,s.items);assert.deepEqual(loaded.warehouse,s.warehouse);assert.equal(restore('broken'),null);assert.equal(restore('{"version":90}'),null);
   for(let i=0;i<100;i++)tick(loaded,.1);assert.ok(loaded.time>0);
 });
@@ -139,19 +139,27 @@ test('offline settlement pays materials from the measured return rate, capped an
 test('difficulty ladder: stages climb, nightmare 1 beats normal 10, acts stay close, boss kills unlock tiers, changes lock for five minutes',()=>{
   const s=createGame();
   const n1=zoneStats(s,0).hp;s.difficulty.stage=10;const n10=zoneStats(s,0).hp;s.difficulty.stage=1;
-  assert.ok(n10>n1*3&&n10<n1*4,'stage ten is roughly 3.7x stage one');
+  assert.ok(n10>n1*7&&n10<n1*8,'stage ten is roughly 7.45x stage one');
   assert.ok(zoneStats(s,3).hp/zoneStats(s,0).hp<=2.5&&zoneStats(s,3).hp>zoneStats(s,0).hp,'ACT IV is stronger than ACT I but not wildly');
   assert.equal(setDifficulty(s,1,1).ok,false,'nightmare is locked until the normal boss dies');
-  assert.ok(setDifficulty(s,0,4).ok);assert.equal(s.difficulty.stage,4);assert.equal(setDifficulty(s,0,5).ok,false,'locked for five minutes');
-  s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,0,5).ok);
-  s.treasury=5000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}const r=summonBoss(s);assert.ok(r.ok);r.boss.hp=1;r.boss.contributors[s.heroes[0].id]=1;
-  for(let i=0;i<200&&s.raid;i++)tick(s,.1);assert.equal(s.raid,null);assert.equal(s.difficulty.unlocked,1,'normal boss unlocks nightmare');
-  s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,1,1).ok);assert.equal(setDifficulty(s,2,1).ok,false,'hell still locked');
+  assert.equal(setDifficulty(s,0,10).ok,false,'cannot skip normal stages');
+  s.treasury=100000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
+  for(let tier=0;tier<3;tier++)for(let stage=1;stage<=10;stage++){
+    assert.equal(s.difficulty.tier,tier);assert.equal(s.difficulty.stage,stage);
+    s.raidReadyAt=0;const r=summonBoss(s);assert.ok(r.ok);r.boss.hp=1;r.boss.contributors[s.heroes[0].id]=1;
+    for(let i=0;i<200&&s.raid;i++)tick(s,.1);assert.equal(s.raid,null);
+    const nextTier=stage===10?Math.min(2,tier+1):tier,nextStage=stage===10?(tier===2?10:1):stage+1;
+    assert.equal(s.difficulty.unlocked,nextTier);assert.equal(s.difficulty.unlockedStage,nextStage);
+    if(tier===2&&stage===10)break;
+    s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,nextTier,nextStage).ok);
+    assert.equal(setDifficulty(s,0,1).ok,false,'changes lock for five minutes');
+  }
+  s.time+=DIFFICULTY_LOCK;assert.ok(setDifficulty(s,1,1).ok);
   const nm1=zoneStats(s,0).hp;assert.ok(nm1>n10*1.5,'nightmare 1 is far above normal 10');
   const e=spawnEnemy(s,0);assert.equal(e.tier,1);assert.ok(e.maxHp>n10);
   const loaded=restore(serialize(s));assert.deepEqual(loaded.difficulty,s.difficulty);assert.equal(loaded.enemies.find(x=>x.id===e.id).tier,1);
-  const legacy=JSON.parse(serialize(s));delete legacy.difficulty;for(const x of legacy.enemies)delete x.tier;const l2=restore(JSON.stringify(legacy));assert.deepEqual(l2.difficulty,{tier:0,stage:1,unlocked:0,lockedUntil:0});assert.ok(l2.enemies.every(x=>x.tier===0));
-  const bad=JSON.parse(serialize(s));bad.difficulty.tier=2;assert.equal(restore(JSON.stringify(bad)),null,'tier above unlocked is rejected');
+  const legacy=JSON.parse(serialize(s));delete legacy.difficulty;for(const x of legacy.enemies)delete x.tier;const l2=restore(JSON.stringify(legacy));assert.deepEqual(l2.difficulty,{tier:0,stage:1,unlocked:0,unlockedStage:1,lockedUntil:0});assert.ok(l2.enemies.every(x=>x.tier===0));
+  const bad=JSON.parse(serialize(s));bad.difficulty.tier=2;bad.difficulty.unlocked=1;assert.equal(restore(JSON.stringify(bad)),null,'tier above unlocked is rejected');
 });
 test('set and unique items are never auto-salvaged: common gear makes room, otherwise the light pillar stays',()=>{
   const s=createGame();const mk=(grade,ilvl=20)=>{const it=generateItem({ilvl,grade,kind:'elite',classId:'barbarian',findPct:0,pity:0,codex:s.codex});it.id=`i${s.nextId++}`;s.items[it.id]=it;return it;};
@@ -164,11 +172,48 @@ test('set and unique items are never auto-salvaged: common gear makes room, othe
   assert.equal(pickupFieldDrop(t,'iX').ok,false);assert.ok(t.fieldDrops.some(d=>d.id==='iX'),'pillar remains on the map');
   tick(t,.1);tick(t,1);assert.ok(t.fieldDrops.some(d=>d.id==='iX')&&t.items.iX,'expiry keeps a protected item instead of destroying it');
 });
-test('game speed persists in the save and is clamped to 1× or 2×',()=>{
-  const s=createGame();s.speed=2;assert.equal(restore(serialize(s)).speed,2);s.speed=4;assert.equal(restore(serialize(s)).speed,1);const legacy=JSON.parse(serialize(s));delete legacy.speed;assert.equal(restore(JSON.stringify(legacy)).speed,1);
+test('new and existing games use fixed 2x speed without losing progress',()=>{
+  const s=createGame();assert.equal(s.speed,2);s.treasury=1234;
+  for(const speed of [1,2,4,undefined]){s.speed=speed;const restored=restore(serialize(s));assert.equal(restored.speed,2);assert.equal(restored.treasury,1234);}
+});
+test('legacy difficulty keeps current progress and previously unlocked tiers',()=>{
+  for(const [tier,stage,unlocked] of [[0,7,0],[0,5,1],[1,8,1],[2,10,2]]){
+    const s=createGame();s.difficulty={tier,stage,unlocked,lockedUntil:0};
+    const loaded=restore(serialize(s));assert.ok(loaded);assert.equal(loaded.difficulty.stage,stage);
+    assert.equal(loaded.difficulty.unlockedStage,tier===unlocked?stage:1);
+    assert.equal(restore(serialize(loaded)).difficulty.unlockedStage,loaded.difficulty.unlockedStage);
+  }
 });
 test('boss cooldown can be reset for gold priced by the remaining minutes',()=>{
   const s=createGame();s.treasury=5000;for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}assert.ok(summonBoss(s).ok);const boss=s.enemies.find(e=>e.boss);boss.hp=1;boss.contributors[s.heroes[0].id]=1;for(let i=0;i<200&&s.raid;i++)tick(s,.1);
   const left=raidCooldownLeft(s);assert.ok(left>0);assert.equal(raidResetCost(s),Math.ceil(left/60)*100);
   s.treasury=10;assert.equal(resetRaidCooldown(s).ok,false);s.treasury=5000;const cost=raidResetCost(s),before=s.treasury;assert.ok(resetRaidCooldown(s).ok);assert.equal(s.treasury,before-cost);assert.equal(raidCooldownLeft(s),0);assert.equal(resetRaidCooldown(s).ok,false,'nothing to reset');
+});
+
+test('boss difficulty depends on stage and roster size rather than hero levels or gear',async()=>{
+ const {bossStats}=await import('../src/engine.js');
+ const s=createGame(),first=bossStats(s);for(const h of s.heroes)h.level=60;assert.deepEqual(bossStats(s),first);
+ s.difficulty.stage=10;const n10=bossStats(s);assert.ok(n10.hp>first.hp*7);assert.ok(n10.atk>first.atk*3);
+ s.difficulty.tier=1;s.difficulty.stage=1;const nightmare=bossStats(s);assert.ok(nightmare.hp>n10.hp*2);assert.ok(nightmare.atk>n10.atk*2);
+ s.heroes.push(...s.heroes.map(h=>({...h})));assert.equal(bossStats(s).hp,nightmare.hp*2);assert.equal(bossStats(s).atk,nightmare.atk);
+});
+test('old combat saves update enemies and bosses while preserving damage and progression',async()=>{
+ const {bossStats,COMBAT_REVISION}=await import('../src/engine.js');
+ const s=createGame();s.treasury=5000;const e=spawnEnemy(s,0);const b=summonBoss(s).boss;
+ const raw=JSON.parse(serialize(s));delete raw.combatRevision;
+ const oldEnemy=raw.enemies.find(x=>x.id===e.id),oldBoss=raw.enemies.find(x=>x.id===b.id);oldEnemy.maxHp=100;oldEnemy.hp=50;oldBoss.maxHp=200;oldBoss.hp=50;
+ const loaded=restore(JSON.stringify(raw));assert.ok(loaded);assert.equal(loaded.combatRevision,COMBAT_REVISION);
+ const mob=loaded.enemies.find(x=>x.id===e.id),boss=loaded.enemies.find(x=>x.id===b.id);
+ assert.equal(mob.hp/mob.maxHp,.5);assert.equal(boss.hp/boss.maxHp,.25);assert.equal(boss.maxHp,bossStats(loaded).hp);
+ assert.equal(loaded.treasury,s.treasury);assert.deepEqual(loaded.difficulty,s.difficulty);assert.equal(loaded.raid.ends,s.raid.ends);
+ const again=restore(serialize(loaded));assert.equal(again.enemies.find(x=>x.id===b.id).hp,boss.hp);
+ raw.combatRevision=99;assert.equal(restore(JSON.stringify(raw)),null);
+});
+test('level sixty alone cannot defeat nightmare one boss within the raid limit',(t)=>{
+ let seed=37;t.mock.method(Math,'random',()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;});
+ const s=createGame();s.treasury=1000;s.difficulty={tier:1,stage:1,unlocked:1,unlockedStage:1,lockedUntil:0};
+ for(const h of s.heroes){h.level=60;h.hp=statsOf(h,s).hp;}
+ const b=summonBoss(s).boss;for(const [i,h]of s.heroes.entries()){h.x=b.x+20+i*2;h.y=b.y+20;h.zone=3;h.state='hunt';}
+ for(let i=0;i<2401&&s.raid;i++)tick(s,.1);
+ assert.equal(s.bossKills,0);assert.equal(s.raid,null);assert.ok(b.hp>b.maxHp*.5);
 });
