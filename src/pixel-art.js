@@ -1,3 +1,4 @@
+import { barbarianSprite } from './barbarian-art.js';
 // Hand-drawn, layered pixel art. Every primitive lands on an integer pixel.
 // Hero frame: 24 × 32, foot anchor (12, 29). Equipment and costume share this rig.
 export const HERO_FRAME = { width: 24, height: 32, anchorX: 12, anchorY: 29 };
@@ -40,7 +41,9 @@ export function pixelText(c,text,x,y,color,scale=1,center=false){
  if(center)x-=Math.floor(width/2);for(const ch of chars){const rows=GLYPHS[ch];if(rows){for(let yy=0;yy<rows.length;yy++)for(let xx=0;xx<rows[yy].length;xx++)if(rows[yy][xx]==='1')rect(c,x+xx*scale,y+yy*scale,scale,scale,color);}x+=((rows?.[0].length||3)+1)*scale;}
 }
 const heroCache=new Map();
-export function heroSprite(a,frame=0,attack=false){
+export function heroSprite(a,frame=0,attack=false,facing=0,moving=false){
+ if(a.body==='barbarian'){const sprite=barbarianSprite(frame,facing,attack?'attack':moving?'walk':'idle',a.tint);if(sprite)return sprite;}
+ frame%=3;
  const key=JSON.stringify([a,frame,attack]);if(heroCache.has(key))return heroCache.get(key);
  const canvas=canvasOf(24,32),c=canvas.getContext('2d'),r=(x,y,w,h,col)=>rect(c,x,y,w,h,col);
  const cloth=a.color,light=shade(cloth,38),dark=shade(cloth,-47),skin=a.body==='necromancer'?'#d7c8ac':'#e6b785',skinLight=shade(skin,22),skinShade=shade(skin,-35);

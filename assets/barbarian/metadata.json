@@ -1,0 +1,201 @@
+{
+  "group_id": "7721d865-c19c-4cd6-9f61-cb6d155804f3",
+  "states": [
+    {
+      "character": {
+        "id": "f71a3b59-95d4-4141-aefd-6c438fe0b087",
+        "name": "Idle",
+        "prompt": "A formidable battle-scarred male barbarian warrior for a dark fantasy action RPG. Massive muscular shoulders and powerful human proportions, rugged stern face, long dark auburn hair and thick braided beard. Bare muscular upper arms, weathered charcoal steel shoulder armor edged with dull bronze, dark wolf-fur mantle, crimson cloth sash, studded leather belt, heavy iron boots. Holds one enormous double-bladed steel battle axe with a wrapped wooden shaft, practical readable silhouette. Premium hand-crafted pixel art with rich clustered shading, crisp selective dark outlines, subtle warm metal highlights and deep brown-red shadows, gritty detailed fantasy aesthetic matching a horned charcoal-and-ember demon boss. Serious and intimidating, not cute, not chibi, not cartoon, no glowing aura or floor shadow. Full body, feet visible, centered with clear transparent padding around weapon. Low top-down three-quarter game camera, consistent size and foot placement in all directions.",
+        "size": {
+          "width": 64,
+          "height": 64
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "low top-down",
+        "created_at": "2026-09-18T06:20:32.459089+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {
+          "barbarian_walk": {
+            "north": [
+              "Idle/animations/barbarian_walk/north/frame_000.png",
+              "Idle/animations/barbarian_walk/north/frame_001.png",
+              "Idle/animations/barbarian_walk/north/frame_002.png",
+              "Idle/animations/barbarian_walk/north/frame_003.png",
+              "Idle/animations/barbarian_walk/north/frame_004.png",
+              "Idle/animations/barbarian_walk/north/frame_005.png",
+              "Idle/animations/barbarian_walk/north/frame_006.png",
+              "Idle/animations/barbarian_walk/north/frame_007.png"
+            ],
+            "north-west": [
+              "Idle/animations/barbarian_walk/north-west/frame_000.png",
+              "Idle/animations/barbarian_walk/north-west/frame_001.png",
+              "Idle/animations/barbarian_walk/north-west/frame_002.png",
+              "Idle/animations/barbarian_walk/north-west/frame_003.png",
+              "Idle/animations/barbarian_walk/north-west/frame_004.png",
+              "Idle/animations/barbarian_walk/north-west/frame_005.png",
+              "Idle/animations/barbarian_walk/north-west/frame_006.png",
+              "Idle/animations/barbarian_walk/north-west/frame_007.png"
+            ],
+            "west": [
+              "Idle/animations/barbarian_walk/west/frame_000.png",
+              "Idle/animations/barbarian_walk/west/frame_001.png",
+              "Idle/animations/barbarian_walk/west/frame_002.png",
+              "Idle/animations/barbarian_walk/west/frame_003.png",
+              "Idle/animations/barbarian_walk/west/frame_004.png",
+              "Idle/animations/barbarian_walk/west/frame_005.png",
+              "Idle/animations/barbarian_walk/west/frame_006.png",
+              "Idle/animations/barbarian_walk/west/frame_007.png"
+            ],
+            "south-east": [
+              "Idle/animations/barbarian_walk/south-east/frame_000.png",
+              "Idle/animations/barbarian_walk/south-east/frame_001.png",
+              "Idle/animations/barbarian_walk/south-east/frame_002.png",
+              "Idle/animations/barbarian_walk/south-east/frame_003.png",
+              "Idle/animations/barbarian_walk/south-east/frame_004.png",
+              "Idle/animations/barbarian_walk/south-east/frame_005.png",
+              "Idle/animations/barbarian_walk/south-east/frame_006.png",
+              "Idle/animations/barbarian_walk/south-east/frame_007.png"
+            ],
+            "south-west": [
+              "Idle/animations/barbarian_walk/south-west/frame_000.png",
+              "Idle/animations/barbarian_walk/south-west/frame_001.png",
+              "Idle/animations/barbarian_walk/south-west/frame_002.png",
+              "Idle/animations/barbarian_walk/south-west/frame_003.png",
+              "Idle/animations/barbarian_walk/south-west/frame_004.png",
+              "Idle/animations/barbarian_walk/south-west/frame_005.png",
+              "Idle/animations/barbarian_walk/south-west/frame_006.png",
+              "Idle/animations/barbarian_walk/south-west/frame_007.png"
+            ],
+            "north-east": [
+              "Idle/animations/barbarian_walk/north-east/frame_000.png",
+              "Idle/animations/barbarian_walk/north-east/frame_001.png",
+              "Idle/animations/barbarian_walk/north-east/frame_002.png",
+              "Idle/animations/barbarian_walk/north-east/frame_003.png",
+              "Idle/animations/barbarian_walk/north-east/frame_004.png",
+              "Idle/animations/barbarian_walk/north-east/frame_005.png",
+              "Idle/animations/barbarian_walk/north-east/frame_006.png",
+              "Idle/animations/barbarian_walk/north-east/frame_007.png"
+            ],
+            "south": [
+              "Idle/animations/barbarian_walk/south/frame_000.png",
+              "Idle/animations/barbarian_walk/south/frame_001.png",
+              "Idle/animations/barbarian_walk/south/frame_002.png",
+              "Idle/animations/barbarian_walk/south/frame_003.png",
+              "Idle/animations/barbarian_walk/south/frame_004.png",
+              "Idle/animations/barbarian_walk/south/frame_005.png",
+              "Idle/animations/barbarian_walk/south/frame_006.png",
+              "Idle/animations/barbarian_walk/south/frame_007.png"
+            ],
+            "east": [
+              "Idle/animations/barbarian_walk/east/frame_000.png",
+              "Idle/animations/barbarian_walk/east/frame_001.png",
+              "Idle/animations/barbarian_walk/east/frame_002.png",
+              "Idle/animations/barbarian_walk/east/frame_003.png",
+              "Idle/animations/barbarian_walk/east/frame_004.png",
+              "Idle/animations/barbarian_walk/east/frame_005.png",
+              "Idle/animations/barbarian_walk/east/frame_006.png",
+              "Idle/animations/barbarian_walk/east/frame_007.png"
+            ]
+          },
+          "barbarian_attack": {
+            "south-west": [
+              "Idle/animations/barbarian_attack/south-west/frame_000.png",
+              "Idle/animations/barbarian_attack/south-west/frame_001.png",
+              "Idle/animations/barbarian_attack/south-west/frame_002.png",
+              "Idle/animations/barbarian_attack/south-west/frame_003.png",
+              "Idle/animations/barbarian_attack/south-west/frame_004.png",
+              "Idle/animations/barbarian_attack/south-west/frame_005.png",
+              "Idle/animations/barbarian_attack/south-west/frame_006.png",
+              "Idle/animations/barbarian_attack/south-west/frame_007.png"
+            ],
+            "south": [
+              "Idle/animations/barbarian_attack/south/frame_000.png",
+              "Idle/animations/barbarian_attack/south/frame_001.png",
+              "Idle/animations/barbarian_attack/south/frame_002.png",
+              "Idle/animations/barbarian_attack/south/frame_003.png",
+              "Idle/animations/barbarian_attack/south/frame_004.png",
+              "Idle/animations/barbarian_attack/south/frame_005.png",
+              "Idle/animations/barbarian_attack/south/frame_006.png",
+              "Idle/animations/barbarian_attack/south/frame_007.png"
+            ],
+            "north-west": [
+              "Idle/animations/barbarian_attack/north-west/frame_000.png",
+              "Idle/animations/barbarian_attack/north-west/frame_001.png",
+              "Idle/animations/barbarian_attack/north-west/frame_002.png",
+              "Idle/animations/barbarian_attack/north-west/frame_003.png",
+              "Idle/animations/barbarian_attack/north-west/frame_004.png",
+              "Idle/animations/barbarian_attack/north-west/frame_005.png",
+              "Idle/animations/barbarian_attack/north-west/frame_006.png",
+              "Idle/animations/barbarian_attack/north-west/frame_007.png"
+            ],
+            "north-east": [
+              "Idle/animations/barbarian_attack/north-east/frame_000.png",
+              "Idle/animations/barbarian_attack/north-east/frame_001.png",
+              "Idle/animations/barbarian_attack/north-east/frame_002.png",
+              "Idle/animations/barbarian_attack/north-east/frame_003.png",
+              "Idle/animations/barbarian_attack/north-east/frame_004.png",
+              "Idle/animations/barbarian_attack/north-east/frame_005.png",
+              "Idle/animations/barbarian_attack/north-east/frame_006.png",
+              "Idle/animations/barbarian_attack/north-east/frame_007.png"
+            ],
+            "south-east": [
+              "Idle/animations/barbarian_attack/south-east/frame_000.png",
+              "Idle/animations/barbarian_attack/south-east/frame_001.png",
+              "Idle/animations/barbarian_attack/south-east/frame_002.png",
+              "Idle/animations/barbarian_attack/south-east/frame_003.png",
+              "Idle/animations/barbarian_attack/south-east/frame_004.png",
+              "Idle/animations/barbarian_attack/south-east/frame_005.png",
+              "Idle/animations/barbarian_attack/south-east/frame_006.png",
+              "Idle/animations/barbarian_attack/south-east/frame_007.png"
+            ],
+            "north": [
+              "Idle/animations/barbarian_attack/north/frame_000.png",
+              "Idle/animations/barbarian_attack/north/frame_001.png",
+              "Idle/animations/barbarian_attack/north/frame_002.png",
+              "Idle/animations/barbarian_attack/north/frame_003.png",
+              "Idle/animations/barbarian_attack/north/frame_004.png",
+              "Idle/animations/barbarian_attack/north/frame_005.png",
+              "Idle/animations/barbarian_attack/north/frame_006.png",
+              "Idle/animations/barbarian_attack/north/frame_007.png"
+            ],
+            "west": [
+              "Idle/animations/barbarian_attack/west/frame_000.png",
+              "Idle/animations/barbarian_attack/west/frame_001.png",
+              "Idle/animations/barbarian_attack/west/frame_002.png",
+              "Idle/animations/barbarian_attack/west/frame_003.png",
+              "Idle/animations/barbarian_attack/west/frame_004.png",
+              "Idle/animations/barbarian_attack/west/frame_005.png",
+              "Idle/animations/barbarian_attack/west/frame_006.png",
+              "Idle/animations/barbarian_attack/west/frame_007.png"
+            ],
+            "east": [
+              "Idle/animations/barbarian_attack/east/frame_000.png",
+              "Idle/animations/barbarian_attack/east/frame_001.png",
+              "Idle/animations/barbarian_attack/east/frame_002.png",
+              "Idle/animations/barbarian_attack/east/frame_003.png",
+              "Idle/animations/barbarian_attack/east/frame_004.png",
+              "Idle/animations/barbarian_attack/east/frame_005.png",
+              "Idle/animations/barbarian_attack/east/frame_006.png",
+              "Idle/animations/barbarian_attack/east/frame_007.png"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-09-18T12:47:03.150870"
+}

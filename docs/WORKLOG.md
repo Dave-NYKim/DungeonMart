@@ -208,3 +208,21 @@
 
 - 요청: 20/40에 2차·3차 전직, 2차 전직을 해야 Lv.40까지, 3차 전직을 해야 Lv.60까지 오르게.
 - 구현: `levelCap(h)`(미전직 20 / 2차 40 / 3차 60), `levelUp`이 상한에서 경험치를 멈추고 한 번 로그로 안내(`capNotified`, 전직 시 리셋). 프로필 경험치 바에 상한 안내 툴팁. README 갱신. 테스트 47개 통과.
+
+## 2026-09-18 · PixelLab MCP 연결
+
+- 요청: 용사 스프라이트 제작용 PixelLab MCP를 Codex에 연결. 사용자가 별도로 실행한 claude mcp add도 성공해 Claude 프로젝트 설정에 등록됨.
+- Codex 글로벌 `~/.codex/config.toml`에 pixellab, streamable_http, https://api.pixellab.ai/mcp, Authorization 인증 등록. 파일 권한 0600. 키 값은 프로젝트·인계 문서에 기록하지 않음.
+- 검증: 공식 MCP initialize와 tools/list 인증 성공, 도구 91개 확인(create_character, animate_character 등). codex mcp get 결과도 enabled와 Authorization 설정 존재를 비밀값 출력 없이 확인.
+- 현재 대화 도구 목록에는 새 서버가 동적 로드되지 않음. Codex 재시작/새 세션에서 PixelLab 도구 로드 후 사용. 이번 작업은 연결만이며 이미지 생성·유료 생성 요청 없음.
+- 게임 소스 변경 없음. 변경 문서 HANDOFF.md, docs/WORKLOG.md. 생성 작업은 별도 사용자 요청에 따라 진행. 기존 게임 변경은 미커밋/미배포 유지.
+
+## 2026-09-18 · PixelLab 바바리안 교체
+
+- 요청: 남은 PixelLab 생성량으로 바바리안만 재제작·적용 후 main에 업로드.
+- 구현: 64px 8방향 대기, 방향별 8프레임 걷기·도끼 공격. 공격 원본은 92px 여백 포함이며 중앙 여백만큼 발 기준점 보정. 실제 공격 횟수 변화로 0.8초 공격 애니메이션 재생. 지도 이동/타깃 방향 및 용사 초상화 연결, 이름/HP 위치 조정. 비동기 로드 실패 시 기존 픽셀 사용.
+- 파일: assets/barbarian/ (원본 PNG 136개·PixelLab 메타데이터·manifest), src/barbarian-art.js, src/pixel-art.js, src/render.js, src/app.js, tests/barbarian-browser-smoke.mjs, 모바일 감사 문서.
+- PixelLab character ID: f71a3b59-95d4-4141-aefd-6c438fe0b087. 무료 생성 18회 사용(기본 2+걷기 8+공격 8), 추가 구매 없음. 인증 정보는 저장소에 포함하지 않음. 직접 이미지 저장소 403은 인증된 MCP character download ZIP으로 해결.
+- 검증: npm test 54개 통과, 문법 검사·git diff --check 통과. 격리 Whale 9223에서 equipment-browser-smoke 통과(390×844/360×640 터치·44px·넘침·오류). barbarian-browser-smoke에서 24개 방향/동작 로드, 걷기·공격 프레임 변화 및 두 모바일 화면/초상화 확인. 실행: npm start 후 격리 브라우저에서 node tests/barbarian-browser-smoke.mjs. 실제 휴대폰 검증은 미실시.
+- 제한: 새 바바리안은 도끼/갑옷이 합쳐진 이미지라 착용 장비별 무기·갑옷 외형 교체는 없음. 능력치와 꾸미기 색조·장신구 광원은 유지. 다른 직업은 기존 픽셀 유지.
+- 다음 작업: 배포 후 실제 폰 가독성 피드백. 다른 직업 제작은 이번 범위에 포함하지 않음.

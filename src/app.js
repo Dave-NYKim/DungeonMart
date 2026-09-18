@@ -346,3 +346,5 @@ function frame(now){const elapsed=Math.min((now-last)/1000,.15);last=now;if(!pau
 renderUI(true);requestAnimationFrame(frame);
 if(offlineReport)save();
 if(saveLoadError||!saveAvailable)help();else if(offlineReport)showOffline(offlineReport);else if(state.time<1)setTimeout(()=>toast('첫 영업을 시작합니다. 제작소에서 용사들의 첫 장비를 만들어 보세요.'),900);
+
+window.addEventListener('hero-art-ready',()=>{signature='';renderUI(true);});
