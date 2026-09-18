@@ -217,3 +217,13 @@ test('level sixty alone cannot defeat nightmare one boss within the raid limit',
  for(let i=0;i<2401&&s.raid;i++)tick(s,.1);
  assert.equal(s.bossKills,0);assert.equal(s.raid,null);assert.ok(b.hp>b.maxHp*.5);
 });
+test('level cap opens with promotions: 20 before the second class, 40 before the third, 60 after',async()=>{
+  const { levelCap, levelUp } = await import('../src/engine.js');
+  const s=createGame(),h=s.heroes[0];assert.equal(levelCap(h),20);
+  h.level=19;h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);assert.equal(h.xp,0,'xp stops at the cap');assert.ok(s.logs.some(l=>l.message.includes('2차 전직')));
+  h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);
+  s.materials={iron:999,crystal:999,soul:999};assert.ok(promote(s,h,CLASSES[0].branches[0].id).ok);assert.equal(levelCap(h),40);
+  h.xp=1e9;levelUp(s,h);assert.equal(h.level,40);
+  assert.ok(promote(s,h,CLASSES[0].branches[0].children[0].id).ok);assert.equal(levelCap(h),60);h.xp=1e9;levelUp(s,h);assert.equal(h.level,60);
+  const loaded=restore(serialize(s));assert.equal(loaded.heroes[0].level,60);
+});

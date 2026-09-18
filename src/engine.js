@@ -14,6 +14,9 @@ const names = ['라그나', '모르트', '에이라', '세레나', '루시안', 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const xpNeeded = h => Math.floor(35 + h.level * 17 + h.level ** 1.45 * 3);
+// 전직 차수에 따른 최대 레벨: 미전직 20, 2차 40, 3차 60.
+export const LEVEL_CAPS = [20, 40, 60];
+export const levelCap = h => LEVEL_CAPS[Math.min(h.path.length, 2)];
 export const availableZone = (s, z) => s.heroes.some(h => h.level >= ZONES[z].level);
 export const passiveValue = (h, key) => skillsOf(h).filter(s => s.passive && s.effect === key).reduce((v, s) => v + s.power * (1 + (s.rank - 1) * .16), 0) + (h._itemPassives?.[key] || 0);
 const gearCache = new WeakMap();
@@ -292,8 +295,9 @@ function kill(s, h, e) {
 }
 export function levelUp(s, h) {
   let gained = 0;
-  while (h.level < 60 && h.xp >= xpNeeded(h)) { h.xp -= xpNeeded(h); h.level++; h.skillPoints++; gained++; }
-  if (h.level === 60) h.xp = 0;
+  const cap = levelCap(h);
+  while (h.level < cap && h.xp >= xpNeeded(h)) { h.xp -= xpNeeded(h); h.level++; h.skillPoints++; gained++; }
+  if (h.level >= cap) { if (h.xp > 0 && cap < 60 && !h.capNotified) { h.capNotified = true; log(s, `${h.name} Lv.${cap} 상한 도달 · ${h.path.length + 2}차 전직을 해야 레벨이 계속 오릅니다.`, 'level'); } h.xp = 0; }
   if (gained) {
     h.hp = statsOf(h, s).hp;
     effect(s, h.x, h.y - 36, 'LEVEL UP', '#ead29a');
@@ -803,7 +807,7 @@ export function promote(s, h, id) {
   if (h.level < level) return { ok: false, message: `${stage}차 전직에는 Lv.${level}이 필요합니다.` };
   if (Object.entries(cost).some(([k, v]) => s.materials[k] < v)) return { ok: false, message: '전직 재료가 부족합니다.' };
   for (const [k, v] of Object.entries(cost)) s.materials[k] -= v;
-  h.path.push(id); h.cooldowns = {};
+  h.path.push(id); h.cooldowns = {}; h.capNotified = false;
   log(s, `${h.name} → ${node.name} ${stage}차 전직!`, 'level');
   return { ok: true, message: `${node.name} 전직 완료 · 새 스킬이 자동으로 사용됩니다.` };
 }
