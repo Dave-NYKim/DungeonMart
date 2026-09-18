@@ -1,7 +1,7 @@
 import { CLASSES, ZONES, MONSTERS, MATERIALS, HERO_GRADES, BOSS_TYPE, DIFFICULTIES, STAGES, stageMult, classOf, skillsOf, titleOf } from './data.js';
 import { GRADES, gradeColor, displayName, itemBase, TIER_NAMES } from './items.js';
 import { installGearUI, itemLines, iconFor } from './gear-ui.js';
-import { createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, resetRaidCooldown, raidResetCost, setDifficulty, zoneStats, DIFFICULTY_LOCK, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
+import { levelCap, createGame, tick, statsOf, powerOf, xpNeeded, availableZone, assignZone, recruit, setSpawnRate, promote, upgradeSkill, resetSkills, upgradeMart, editTown, summonBoss, RAID_COST, raidCooldownLeft, resetRaidCooldown, raidResetCost, setDifficulty, zoneStats, DIFFICULTY_LOCK, settleOffline, offlineRate, OFFLINE, serialize, restore, gearSummary, pickupFieldDrop, warehouseUsed, warehouseCapacity } from './engine.js';
 import { WorldRenderer, portrait, monsterPortrait, drawHero } from './render.js';
 import { pixelIcon } from './pixel-icons.js';
 import { MART, ARRIVAL, REGIONS, POIS, poiAt, regionAt, MOVABLE_IDS, DECORATIONS, TOWN_BOUNDS, snapTown, placementError, freshTown, applyTownLayout } from './world.js';
@@ -94,7 +94,7 @@ function renderDetail() {
 }
 function updateDetail() {
   const h=selectedHero(),st=statsOf(h,state);if(!$('detail-hp'))return;
-  $('detail-hp').style.width=`${h.hp/st.hp*100}%`; $('detail-xp').style.width=`${h.xp/xpNeeded(h)*100}%`;
+  $('detail-hp').style.width=`${h.hp/st.hp*100}%`; $('detail-xp').style.width=`${h.level>=levelCap(h)?100:h.xp/xpNeeded(h)*100}%`;$('detail-xp').parentElement.title=h.level>=levelCap(h)&&levelCap(h)<60?`Lv.${levelCap(h)} 상한 · ${h.path.length+2}차 전직을 하면 Lv.${[20,40,60][h.path.length+1]}까지 열립니다`:`경험치 ${Math.floor(h.xp)} / ${xpNeeded(h)}`;
   $('detail-health').textContent=`${Math.ceil(h.hp)} / ${Math.ceil(st.hp)}`; $('detail-status').textContent=statusOf(h);$('hero-gold').textContent=`${fmt(h.gold)} G`;
   for(const el of document.querySelectorAll('[data-cooldown]')) el.style.height=`${Math.min(100,(h.cooldowns[el.dataset.cooldown]||0)/Number(el.dataset.cd)*100)}%`;
 }

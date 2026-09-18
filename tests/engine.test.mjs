@@ -172,3 +172,13 @@ test('boss cooldown can be reset for gold priced by the remaining minutes',()=>{
   const left=raidCooldownLeft(s);assert.ok(left>0);assert.equal(raidResetCost(s),Math.ceil(left/60)*100);
   s.treasury=10;assert.equal(resetRaidCooldown(s).ok,false);s.treasury=5000;const cost=raidResetCost(s),before=s.treasury;assert.ok(resetRaidCooldown(s).ok);assert.equal(s.treasury,before-cost);assert.equal(raidCooldownLeft(s),0);assert.equal(resetRaidCooldown(s).ok,false,'nothing to reset');
 });
+test('level cap opens with promotions: 20 before the second class, 40 before the third, 60 after',async()=>{
+  const { levelCap, levelUp } = await import('../src/engine.js');
+  const s=createGame(),h=s.heroes[0];assert.equal(levelCap(h),20);
+  h.level=19;h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);assert.equal(h.xp,0,'xp stops at the cap');assert.ok(s.logs.some(l=>l.message.includes('2차 전직')));
+  h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);
+  s.materials={iron:999,crystal:999,soul:999};assert.ok(promote(s,h,CLASSES[0].branches[0].id).ok);assert.equal(levelCap(h),40);
+  h.xp=1e9;levelUp(s,h);assert.equal(h.level,40);
+  assert.ok(promote(s,h,CLASSES[0].branches[0].children[0].id).ok);assert.equal(levelCap(h),60);h.xp=1e9;levelUp(s,h);assert.equal(h.level,60);
+  const loaded=restore(serialize(s));assert.equal(loaded.heroes[0].level,60);
+});
