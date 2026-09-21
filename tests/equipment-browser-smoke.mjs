@@ -32,7 +32,7 @@ async function touch(selector){
 }
 try{
  await send('Runtime.enable');await send('Page.enable');await send('Page.navigate',{url:BASE});await sleep(800);
- const fixture=await evaluate(`(async()=>{const e=await import('./src/engine.js'),i=await import('./src/items.js'),s=e.createGame();s.materials.iron=1000;for(const grade of ['set','unique']){const item=i.generateItem({ilvl:40,grade});item.id='i'+s.nextId++;s.items[item.id]=item;s.warehouse.push(item.id);}return e.serialize(s)})()`);
+ const fixture=await evaluate(`(async()=>{const e=await import('./src/engine.js'),i=await import('./src/items.js'),s=e.createGame();s.materials.iron=1000;for(const grade of ['set','unique']){const item=i.generateItem({ilvl:40,grade});item.id='i'+s.nextId++;item.purchased=grade==='unique';s.items[item.id]=item;s.warehouse.push(item.id);}return e.serialize(s)})()`);
  await loadFixture(fixture);await pauseToggle();await send('Emulation.setTouchEmulationEnabled',{enabled:true});
  for(const [width,height] of [[390,844],[360,640]]){
   await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});await send('Emulation.setEmulatedMedia',{features:[{name:'pointer',value:'coarse'},{name:'hover',value:'none'}]});await sleep(250);
@@ -42,6 +42,9 @@ try{
   await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:cx-30,y:cy,id:1},{x:cx+30,y:cy,id:2}]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:cx-60,y:cy,id:1},{x:cx+60,y:cy,id:2}]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(200);assert.ok((await camera()).zoom>beforeZoom.zoom,'pinch zoom survives controls removal');
   await touch('#nav [data-view="town"]');
   assert.ok(await evaluate(`document.querySelector('#town-gear .wh-head').textContent.includes(' / 80개')`));
+  assert.ok(await evaluate(`[...document.querySelectorAll('#town-gear .wh-item .item-sale-price')].some(e=>e.textContent.startsWith('판매가 '))`));
+  assert.ok(await evaluate(`[...document.querySelectorAll('#town-gear .wh-item .item-sale-price')].some(e=>e.textContent==='구매 완료')`));
+  assert.ok(await evaluate(`[...document.querySelectorAll('#town-gear .item-sale-price')].every(e=>e.scrollWidth<=e.clientWidth&&parseFloat(getComputedStyle(e).fontSize)>=13)`));
   await touch('#town-gear .wh-item');assert.ok(await evaluate(`document.querySelector('#town-gear .gear-detail .detail-head')`),'warehouse detail works without selected hero');
   await touch('#town-tabs [data-mode="edit"]');assert.ok(await evaluate(`!document.querySelector('#town-edit').hidden`));
   await touch('#town-tabs [data-mode="workshop"]');
@@ -49,6 +52,7 @@ try{
   assert.ok(await evaluate(`!document.querySelector('#craft-grade')`),'grade selector removed');
   assert.ok(await evaluate(`document.querySelector('.craft-random-note').textContent.includes('레어 10%')`));
   const before=await saved();await touch('#workshop-view [data-gear="craft"]');const after=await saved();
+  assert.ok(await evaluate(`document.querySelector('#workshop-view .gear-detail .item-sale-price').textContent.startsWith('판매가 ')`));
   assert.equal(after.crafted,before.crafted+1);assert.equal(before.materials.iron-after.materials.iron,8);
   const item=Object.values(after.items).find(i=>!before.items[i.id]);assert.ok(['normal','magic','rare'].includes(item.grade));
   assert.ok(await evaluate(`[...document.querySelectorAll('#workshop-view .form-row select,#workshop-view [data-gear="craft"]')].every(e=>{const r=e.getBoundingClientRect();return r.width>=44&&r.height>=44&&r.right<=innerWidth})`));

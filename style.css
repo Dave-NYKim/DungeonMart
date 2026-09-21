@@ -464,3 +464,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 @media(max-width:720px){.tree-node{min-height:92px}.tree-node strong{font-size:11px}}
 
 .act-boss-button{width:100%;min-height:44px;margin-bottom:8px}
+
+/* Prices stay visible outside the truncated equipment description. */
+.item-sale-price{display:block;font-size:13px;line-height:1.5;font-weight:700;color:#f2ce78;white-space:nowrap}
+.item-sale-price.purchased{color:#a9b09b;font-weight:400}

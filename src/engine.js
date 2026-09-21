@@ -284,13 +284,13 @@ function endRaid(s, outcome, e) {
   for (const h of s.heroes) if (h.state === 'hunt' || h.state === 'depart') { h.state = h.standby ? 'return' : 'depart'; h.target = null; }
   if(outcome==='win'&&Number.isInteger(act)){
     const key=campaignKey(s),before=actProgress(s);s.campaign.clears[key]=Math.max(before,act+1);
-    const bounty=Math.round((250+act*150)*difficultyOf(s).reward);s.treasury+=bounty;
+    const bounty=Math.round((25+act*15)*difficultyOf(s).reward);s.treasury+=bounty;
     for(const h of s.heroes.filter(h=>e.contributors[h.id]>0)){h.kills++;h.xp+=zoneStats(s,act).xp*12;h.bag.soul+=act+1;levelUp(s,h);}
     log(s,`${m.name} 처치 · ${bounty} G${act>=before?act===3?' · 최종보스 소환 해금':` · ACT ${act+2} 해금`:''}`,'boss');return;
   }
   if (outcome === 'win') {
-    const D = difficultyOf(s), zs = zoneStats(s, 3), participants = s.heroes.filter(p => e.contributors[p.id] > 0), bounty = Math.round(2000 * D.reward);
-    for (const p of participants) { p.xp += zs.xp * 20; p.gold += zs.gold * 25; p.kills++; p.bag.soul += 3 * D.reward; levelUp(s, p); }
+    const D = difficultyOf(s), zs = zoneStats(s, 3), participants = s.heroes.filter(p => e.contributors[p.id] > 0), bounty = Math.round(200 * D.reward);
+    for (const p of participants) { p.xp += zs.xp * 20; p.gold += Math.floor(zs.gold * 2.5); p.kills++; p.bag.soul += 3 * D.reward; levelUp(s, p); }
     s.treasury += bounty; s.bossKills++;
     const f = s.difficulty;
     if (f.tier === f.unlocked && f.stage === f.unlockedStage && (f.unlockedStage < STAGES || f.unlocked < DIFFICULTIES.length - 1)) {

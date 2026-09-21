@@ -24,3 +24,16 @@ test('campaign migration preserves earned assets and validates progression',()=>
 test('oasis is a reachable healing destination, not an instant heal',()=>{
  const s=createGame(),h=s.heroes[0];s.campaign.clears['0:1']=1;h.hp=statsOf(h,s).hp*.5;const hp=h.hp;assert.ok(restAtOasis(s,h).ok);assert.equal(h.hp,hp);assert.equal(h.restStop,'oasis');const p=POIS.find(p=>p.id==='oasis');h.x=p.x;h.y=p.y+48;for(let i=0;i<30;i++)tick(s,.25);assert.ok(h.hp>hp);assert.ok(restore(serialize(s)));
 });
+
+test('reduced boss gold goes to treasury and only final participants receive personal gold',()=>{
+ for(const [tier,mult]of [[0,1],[1,3],[2,8]]){
+  const s=createGame();s.enemies=[];s.treasury=10000;Object.assign(s.difficulty,{tier,stage:1,unlocked:tier,unlockedStage:1});
+  for(let z=0;z<4;z++){
+   const before=s.treasury,gold=s.heroes.map(h=>h.gold),b=summonActBoss(s,z).boss;win(s,b);
+   assert.equal(s.treasury-before,[25,40,55,70][z]*mult);assert.deepEqual(s.heroes.map(h=>h.gold),gold);
+  }
+  const b=summonBoss(s).boss,before=s.treasury,gold=s.heroes.map(h=>h.gold);win(s,b);
+  assert.equal(s.treasury-before,200*mult);assert.equal(s.heroes[0].gold-gold[0],Math.floor(65*mult*2.5));
+  for(let i=1;i<s.heroes.length;i++)assert.equal(s.heroes[i].gold,gold[i],'nonparticipants receive no personal bounty');
+ }
+});
