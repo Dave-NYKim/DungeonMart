@@ -1,5 +1,12 @@
 # Dungeon Mart 인계 노트
 
+## 2026-09-21 · main / GitHub Pages 배포 완료
+
+- 배포 커밋: c63ea3a(픽셀·액트 진행·영혼·100레벨/경험치/난이도), 7e74791(보스 골드90% 감소·장비 판매가 표시). 원격 main push 성공.
+- GitHub Pages latest build: 7e74791f51f7bc85f568b52c548864c2c7e4ab83, built, error 없음. https://dave-nykim.github.io/DungeonMart/ 의 src/engine.js·src/gear-ui.js·assets/buildings/sprites.png를 받아 로컬과 바이트 일치 확인.
+- 최종 검증: npm test65/65, 격리 모바일390×844/360×640 캠페인·헬10 UI·장비 가격 터치 검증 통과. 저장 마이그레이션 포함.
+- 미완료: 실제 폰 성능/성장 체감은 사용자 확인 필요, 신규 PNG 초기전송 용량 최적화는 후속. PixelLab 인증 정보는 저장소에 포함하지 않음.
+
 ## 2026-09-21 · 보스 골드90% 감소·장비 판매가 표시
 
 - 후속 요청: 보스가 주는 돈이 과다함(일반 사냥/판매는 대상 아님), 지급 대상 설명 및 장비별 가격 표시.

@@ -336,3 +336,10 @@
 - 변경: src/engine.js, src/gear-ui.js, style.css, tests/campaign.test.mjs, tests/equipment-browser-smoke.mjs, README.md 및 기록 문서.
 - 검증: npm test65/65. 보스 종류/3난이도별 운영금과 개인 골드·비참여자 미지급 검증. 격리 모바일390×844/360×640 실제 터치 창고/제작소 가격·구매완료·13px·넘침 없음 통과. 기존액트/성장 검증 포함.
 - 배포: 이전 게임 변경 커밋c63ea3a와 함께 main/Pages 배포 예정. 다음: 실기기 성장/운영금 경제 체감 조정, 초기 이미지 전송 최적화.
+
+## 2026-09-21 · main / GitHub Pages 배포 완료
+
+- 배포 커밋: c63ea3a(픽셀·액트 진행·영혼·100레벨/경험치/난이도), 7e74791(보스 골드90% 감소·장비 판매가 표시). 원격 main push 성공.
+- GitHub Pages latest build: 7e74791f51f7bc85f568b52c548864c2c7e4ab83, built, error 없음. https://dave-nykim.github.io/DungeonMart/ 의 src/engine.js·src/gear-ui.js·assets/buildings/sprites.png를 받아 로컬과 바이트 일치 확인.
+- 최종 검증: npm test65/65, 격리 모바일390×844/360×640 캠페인·헬10 UI·장비 가격 터치 검증 통과. 저장 마이그레이션 포함.
+- 미완료: 실제 폰 성능/성장 체감은 사용자 확인 필요, 신규 PNG 초기전송 용량 최적화는 후속. PixelLab 인증 정보는 저장소에 포함하지 않음.
