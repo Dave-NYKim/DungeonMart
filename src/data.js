@@ -76,9 +76,9 @@ export const ZONES = [
 // Original creature names; stable IDs preserve existing saves.
 // Difficulty ladder: three tiers × ten stages. Nightmare 1 must clearly out-muscle Normal 10.
 export const DIFFICULTIES = [
-  { id: 'normal', name: '노멀', en: 'NORMAL', mult: 1, reward: 1, bossHp: 12000, bossAtk: 90, color: '#9baa83' },
-  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 5 ** 10, reward: 3, bossHp: 12000 * 5 ** 10, bossAtk: 90 * 5 ** 10, color: '#a982c9' },
-  { id: 'hell', name: '헬', en: 'HELL', mult: 5 ** 20, reward: 8, bossHp: 12000 * 5 ** 20, bossAtk: 90 * 5 ** 20, color: '#d8705a' }
+  { id: 'normal', name: '노멀', en: 'NORMAL', mult: 1, reward: 1, bossHp: 150000, bossAtk: 200, color: '#9baa83' },
+  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 5 ** 10, reward: 3, bossHp: 150000 * 5 ** 10, bossAtk: 200 * 5 ** 10, color: '#a982c9' },
+  { id: 'hell', name: '헬', en: 'HELL', mult: 5 ** 20, reward: 8, bossHp: 150000 * 5 ** 20, bossAtk: 200 * 5 ** 20, color: '#d8705a' }
 ];
 export const STAGES = 10;
 export const stageMult = stage => 5 ** (stage - 1);

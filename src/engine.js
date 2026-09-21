@@ -26,12 +26,16 @@ export const actProgress=s=>s.campaign?.clears?.[campaignKey(s)]??0;
 export const availableZone=(s,z)=>Number.isInteger(z)&&z>=0&&z<4&&z<=actProgress(s);
 export const ACT_BOSS_TYPES=['cryptwarden','tombemperor','thornking','gatekeeper'];
 export const finalBossUnlocked=s=>actProgress(s)>=4;
+// Each act boss can be summoned once per five minutes; gold cannot shorten this wait.
+export const ACT_BOSS_COOLDOWN=300;
+export const actBossCooldownLeft=(s,zone)=>Math.max(0,(s.actBossReadyAt?.[zone]||0)-s.time);
 function rallyHeroes(s){for(const h of s.heroes){h.target=null;delete h.restStop;if(h.state==='dead')continue;if(h.state==='arrive'&&h.arrivalStage===-1){h.x=ARRIVAL.reception.x;h.y=ARRIVAL.reception.y;h.arrivalStage=2;h.arrivalWait=0;}h.state='depart';}}
 export function summonActBoss(s,zone){
  if(!availableZone(s,zone))return {ok:false,message:'이전 액트 보스를 먼저 처치하세요.'};
  if(s.raid)return {ok:false,message:'진행 중인 보스전을 먼저 끝내세요.'};
+ const wait=actBossCooldownLeft(s,zone);if(wait>0)return {ok:false,message:`ACT ${zone+1} 보스는 ${Math.ceil(wait)}초 뒤 다시 소환할 수 있습니다.`};
  const poi=POIS.find(p=>p.id===ACT_BOSS_POIS[zone]),pos=nearestWalkable({x:poi.x,y:poi.y+110}),stats=bossStats(s),e={id:`e${s.nextId++}`,type:ACT_BOSS_TYPES[zone],zone,tier:s.difficulty.tier,...pos,hp:Math.round(stats.hp*[.18,.32,.5,.72][zone]),atk:Math.round(stats.atk*[.35,.5,.65,.8][zone]),boss:true,actBoss:zone,elite:false,cd:2,specialCd:5,summonCd:14,spinCd:12,facing:0,spin:null,contributors:{},dots:[],slow:0,stun:0,curse:0,fear:0,taunt:null,summoned:false};
- e.maxHp=e.hp;s.enemies.push(e);s.raid={bossId:e.id,zone,kind:'act',started:s.time,ends:s.time+RAID_DURATION};rallyHeroes(s);log(s,`ACT ${zone+1} · ${MONSTERS[e.type].name} 도전!`,'boss');return {ok:true,message:'모든 용사가 액트 보스로 향합니다.',boss:e};
+ e.maxHp=e.hp;s.enemies.push(e);s.actBossReadyAt[zone]=s.time+ACT_BOSS_COOLDOWN;s.raid={bossId:e.id,zone,kind:'act',started:s.time,ends:s.time+RAID_DURATION};rallyHeroes(s);log(s,`ACT ${zone+1} · ${MONSTERS[e.type].name} 도전!`,'boss');return {ok:true,message:'모든 용사가 액트 보스로 향합니다.',boss:e};
 }
 export function restAtOasis(s,h){if(s.raid||h.state==='dead'||!availableZone(s,1))return {ok:false,message:'지금은 휴식할 수 없습니다.'};h.restStop='oasis';h.state='return';h.target=null;return {ok:true,message:'오아시스로 이동해 회복합니다.'};}
 
@@ -86,10 +90,10 @@ export function makeHero(s, classId, grade = 0) {
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, campaign:{clears:{}}, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, campaign:{clears:{}}, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, actBossReadyAt: [0, 0, 0, 0], bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
-  for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
-  log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
+  s.heroes.push(makeHero(s, 'barbarian'));
+  log(s, '던전 마트 영업 시작. 바바리안 한 명이 황야로 향합니다.', 'system');
   log(s, '첫 납품 재료가 도착했습니다. 제작소에서 장비를 만들어 보세요.', 'loot');
   for (const z of ZONES) for (let i = 0; i < 7; i++) spawnEnemy(s, z.id, false, i);
   return s;
@@ -103,11 +107,13 @@ function effect(s, x, y, text, color = '#ddd0a7', kind = 'text', to = null) {
   s.effects.push({ x, y, text, color, kind, to, life: kind === 'text' ? 1.1 : kind.startsWith('boss-') ? .9 : .45, max: kind === 'text' ? 1.1 : kind.startsWith('boss-') ? .9 : .45 });
 }
 export const DIFFICULTY_LOCK = 300;
+// Monster experience is one tenth of the zone table so levels are earned over a longer run.
+export const XP_RATE = .1;
 function freshDifficulty() { return { tier: 0, stage: 1, unlocked: 0, unlockedStage: 1, lockedUntil: 0 }; }
 export function difficultyOf(s) { return DIFFICULTIES[s.difficulty.tier]; }
 export function zoneStats(s, zone) {
   const D = difficultyOf(s), st = stageMult(s.difficulty.stage), z = ZONES[zone], reward = D.reward * (1 + (s.difficulty.stage - 1) * .15);
-  return { hp: BASE_MONSTER.hp * ACT_FACTORS.hp[zone] * D.mult * st, atk: BASE_MONSTER.atk * ACT_FACTORS.atk[zone] * D.mult * st, xp: z.xp * reward, gold: z.gold * reward, mat: 1 + (s.difficulty.stage - 1) * .1 + s.difficulty.tier * .5 };
+  return { hp: BASE_MONSTER.hp * ACT_FACTORS.hp[zone] * D.mult * st, atk: BASE_MONSTER.atk * ACT_FACTORS.atk[zone] * D.mult * st, xp: z.xp * reward * XP_RATE, gold: z.gold * reward, mat: 1 + (s.difficulty.stage - 1) * .1 + s.difficulty.tier * .5 };
 }
 export function setDifficulty(s, tier, stage) {
   if (!Number.isInteger(tier) || !DIFFICULTIES[tier] || !Number.isInteger(stage) || stage < 1 || stage > STAGES) return { ok: false, message: '잘못된 난이도입니다.' };
@@ -256,7 +262,7 @@ function bossBehaviour(s, e, target, targets, dt) {
 // Fixed difficulty targets: equipment improves the party without strengthening its opponent.
 export function bossStats(s) {
   const d = difficultyOf(s), stage = s.difficulty.stage;
-  return { hp: Math.round(d.bossHp * stageMult(stage) * Math.max(1, s.heroes.length / 5)), atk: Math.round(d.bossAtk * stageMult(stage)) };
+  return { hp: Math.round(d.bossHp * stageMult(stage) * Math.max(1, s.heroes.length) / 5), atk: Math.round(d.bossAtk * stageMult(stage)) };
 }
 export function summonBoss(s) {
   const m = MONSTERS[BOSS_TYPE];
@@ -927,6 +933,7 @@ export function restore(raw) {
     if (obj(s.materials)) s.materials.relic ??= 0;
     if (!nums(s.materials) || !['iron','crystal','soul','relic'].every(k => num(s.materials[k]) && s.materials[k] >= 0)) return null;
     s.raidReadyAt ??= 0; s.bossPity ??= 0; if (!num(s.raidReadyAt) || !num(s.bossPity)) return null;
+    if (!Array.isArray(s.actBossReadyAt) || s.actBossReadyAt.length !== 4 || !s.actBossReadyAt.every(num)) s.actBossReadyAt = [0, 0, 0, 0];
     s.upgrades.warehouse ??= 0;
     if (!obj(s.upgrades) || !['forge','clinic','warehouse'].every(k => Number.isInteger(s.upgrades[k]) && s.upgrades[k] >= 0 && s.upgrades[k] <= 5)) return null;
     s.pity ??= 0; s.itemRev ??= 0; s.codex ??= { sets: {}, uniques: {}, mantras: {} }; s.drawer ??= { gems: {}, runes: {} };

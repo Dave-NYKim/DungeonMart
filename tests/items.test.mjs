@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES } from '../src/data.js';
 import { BASES, AFFIXES, RUNES, RUNE_LIST, MANTRAS, SETS, UNIQUES, GEMS, generateItem, rollDropGrade, rollCraftGrade, DROP_TABLE, rollGrid, effectiveGrid, gridCells, fits, findSpot, activation, itemStats, mantraFor, weightOf, priceOf, itemMatches, describeStat } from '../src/items.js';
-import { createGame, tick, craft, autoPlace, placeItem, rotateItem, unplaceItem, insertSocket, combine, pickupFieldDrop, statsOf, serialize, restore, warehouseCapacity, warehouseUsed, upgradeMart, gearBonus, FIELD_DROP_TIME } from '../src/engine.js';
+import { createGame as newGame, makeHero, tick, craft, autoPlace, placeItem, rotateItem, unplaceItem, insertSocket, combine, pickupFieldDrop, statsOf, serialize, restore, warehouseCapacity, warehouseUsed, upgradeMart, gearBonus, FIELD_DROP_TIME } from '../src/engine.js';
+// These scenarios need the full five-class roster; a real game starts with one barbarian.
+const createGame=()=>{const s=newGame();for(const c of CLASSES.slice(1))s.heroes.push(makeHero(s,c.id));return s;};
 
 const seeded = seed => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
 const rich = () => { const s = createGame(); s.materials = { iron: 99999, crystal: 99999, soul: 99999 }; for (const h of s.heroes) h.gold = 99999; return s; };

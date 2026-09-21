@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf, DIFFICULTIES } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss as summonUnlockedFinal, RAID_COST, RAID_DURATION, SPIN, facingTo, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK, storeItem, pickupFieldDrop, warehouseUsed, warehouseCapacity, resetRaidCooldown, raidResetCost, raidCooldownLeft } from '../src/engine.js';
+import { createGame as newGame, makeHero, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss as summonUnlockedFinal, RAID_COST, RAID_DURATION, SPIN, facingTo, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK, storeItem, pickupFieldDrop, warehouseUsed, warehouseCapacity, resetRaidCooldown, raidResetCost, raidCooldownLeft } from '../src/engine.js';
+// These scenarios need the full five-class roster; a real game starts with one barbarian.
+const createGame=()=>{const s=newGame();for(const c of CLASSES.slice(1))s.heroes.push(makeHero(s,c.id));return s;};
 import { BASES, effectiveGrid, generateItem, GRADES } from '../src/items.js';
 // Existing final-raid tests start with the four act bosses already cleared.
 const summonBoss=s=>{s.campaign.clears[`${s.difficulty.tier}:${s.difficulty.stage}`]=4;return summonUnlockedFinal(s);};
@@ -11,7 +13,7 @@ import { MART, CAMPS, REGIONS, regionAt } from '../src/world.js';
 const rich = () => {const s=createGame();s.materials={iron:10000,crystal:10000,soul:10000};s.treasury=10000;return s;};
 test('automatic hunting yields XP, personal gold, shared materials and return trips',()=>{
   const s=createGame();for(let i=0;i<3000;i++)tick(s,.1);
-  assert.ok(s.kills>30);assert.ok(s.materials.iron>48);assert.ok(s.heroes.every(h=>h.level>1));
+  assert.ok(s.kills>30);assert.ok(s.materials.iron>48);assert.ok(s.heroes.every(h=>h.level>1||h.xp>0));
   for(const h of s.heroes){assert.ok(Number.isFinite(h.hp));assert.ok(h.hp>=0);assert.ok(h.hp<=statsOf(h,s).hp);assert.ok(h.gold>100);}
   assert.ok(s.logs.some(l=>l.message.includes('귀환')));
 });

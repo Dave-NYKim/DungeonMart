@@ -343,3 +343,12 @@
 - GitHub Pages latest build: 7e74791f51f7bc85f568b52c548864c2c7e4ab83, built, error 없음. https://dave-nykim.github.io/DungeonMart/ 의 src/engine.js·src/gear-ui.js·assets/buildings/sprites.png를 받아 로컬과 바이트 일치 확인.
 - 최종 검증: npm test65/65, 격리 모바일390×844/360×640 캠페인·헬10 UI·장비 가격 터치 검증 통과. 저장 마이그레이션 포함.
 - 미완료: 실제 폰 성능/성장 체감은 사용자 확인 필요, 신규 PNG 초기전송 용량 최적화는 후속. PixelLab 인증 정보는 저장소에 포함하지 않음.
+
+## 2026-09-21 · 노멀 보스 난이도·경험치1/10·바바리안 단독 시작·액트 보스 5분 쿨다운
+
+- 요청: 시작 직후 ACT1 보스가 잡힘. 레벨업이 너무 빠름(몬스터 경험치 전 구간 1/10). 바바리안 한 명·운영금0으로 시작. 액트 보스는 액트별로 소환 후 5분 재소환 불가, 운영금 초기화 불가. 헬은 풀템 전용이므로 노멀부터 조정.
+- 구현: DIFFICULTIES 노멀 bossHp 12000→150000, bossAtk 90→200(나이트메어·헬 동일 비율, 액트 비율 .18/.32/.5/.72 유지). bossStats 체력을 용사 수 비례(5명 기준, 최소1명)로 변경. XP_RATE=.1을 zoneStats xp에 적용(보스 경험치도 이 값을 기준으로 함). createGame은 바바리안1명(운영금0, 용사 개인 소지금100 유지). ACT_BOSS_COOLDOWN=300, s.actBossReadyAt[4]를 소환 시점에 설정, 저장 복원 시 없으면 [0,0,0,0]. 보스 도전 창에 남은 시간 표시·버튼 비활성.
+- 시뮬레이션(장비·스킬 없는 5인): 처치 가능 레벨 ACT1≈8, ACT2≈15, ACT3≈20, ACT4≈30, 최종≈35. 이전에는 Lv1 파티가 ACT1을 29초에 처치, Lv3 파티가 최종보스 처치.
+- 변경 파일: src/data.js, src/engine.js, src/app.js, README.md, tests/campaign.test.mjs(신규3), tests/engine.test.mjs·tests/items.test.mjs(5직업 전제 시나리오는 테스트 내 5인 로스터 헬퍼 사용).
+- 검증: npm test 68/68. 브라우저 스모크·실기기 미실시.
+- 남은 문제: 경험치1/10과 새 보스 수치의 실제 체감(특히 Lv10 이후 성장 속도 대비 ACT3~최종) 플레이 피드백 필요.
