@@ -453,3 +453,14 @@ button:active:not(:disabled){filter:brightness(1.15)}
  #town-view .gear-detail small,#town-view .craft-note{font-size:13px;line-height:1.5}
  .town-head p{font-size:13px}
 }
+
+#hero-name-input{display:block;width:100%;box-sizing:border-box;min-height:48px;font-size:16px;margin-top:8px}.detail-name h2{overflow-wrap:anywhere}.detail-name [data-action="rename-hero"]{min-height:44px;margin:8px 0}
+
+/* Clear promotion emblems, readable on phones. */
+.tree-node .node-icon,.tree-detail .node-icon{width:44px;height:44px;border-radius:6px;background:#17221f;border-color:#64715a}
+.tree-node .node-icon svg,.tree-detail .node-icon svg{width:36px;height:36px}
+.tree-node{min-height:92px;gap:6px}.tree-node strong{font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.tree-skill svg.skill-art{width:36px;height:36px;flex-shrink:0}
+@media(max-width:720px){.tree-node{min-height:92px}.tree-node strong{font-size:11px}}
+
+.act-boss-button{width:100%;min-height:44px;margin-bottom:8px}

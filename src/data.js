@@ -73,37 +73,41 @@ export const ZONES = [
   { id: 2, name: '몰락한 밀림', en: 'FALLEN JUNGLE', act: 'III', theme: '밀림 · 폐사원', level: 20, color: '#72a68d', x: REGIONS[2].x, y: REGIONS[2].y, radius: 380, hp: 750, atk: 49, xp: 145, gold: 38, material: 'soul', monsters: ['fetish', 'hulk', 'zealot', 'council'] },
   { id: 3, name: '불타는 지옥', en: 'BURNING HELLS', act: 'IV', theme: '용암 · 혼돈의 성채', level: 35, color: '#cc7b66', x: REGIONS[3].x, y: REGIONS[3].y, radius: 380, hp: 1700, atk: 82, xp: 290, gold: 65, material: 'soul', monsters: ['finger', 'megademon', 'knight', 'mother'] }
 ];
-// Names / act distribution: Blizzard's Arreat Summit. Art and tuning are original prototype data.
+// Original creature names; stable IDs preserve existing saves.
 // Difficulty ladder: three tiers × ten stages. Nightmare 1 must clearly out-muscle Normal 10.
 export const DIFFICULTIES = [
   { id: 'normal', name: '노멀', en: 'NORMAL', mult: 1, reward: 1, bossHp: 12000, bossAtk: 90, color: '#9baa83' },
-  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 20, reward: 3, bossHp: 240000, bossAtk: 900, color: '#a982c9' },
-  { id: 'hell', name: '헬', en: 'HELL', mult: 400, reward: 8, bossHp: 4800000, bossAtk: 6000, color: '#d8705a' }
+  { id: 'nightmare', name: '나이트메어', en: 'NIGHTMARE', mult: 5 ** 10, reward: 3, bossHp: 12000 * 5 ** 10, bossAtk: 90 * 5 ** 10, color: '#a982c9' },
+  { id: 'hell', name: '헬', en: 'HELL', mult: 5 ** 20, reward: 8, bossHp: 12000 * 5 ** 20, bossAtk: 90 * 5 ** 20, color: '#d8705a' }
 ];
 export const STAGES = 10;
-export const stageMult = stage => 1.25 ** (stage - 1);
+export const stageMult = stage => 5 ** (stage - 1);
 // Within one difficulty the acts climb gently: ACT IV is stronger than ACT I but not by orders of magnitude.
 export const ACT_FACTORS = { hp: [1, 1.3, 1.7, 2.2], atk: [1, 1.25, 1.55, 1.9] };
 export const BASE_MONSTER = { hp: 90, atk: 14 };
 export const BOSS_TYPE = 'ashlord';
 export const MONSTERS = {
+  cryptwarden: {name:'묘역의 파수장',en:'Ossuary Warden',shape:'boss',color:'#b5a0dd',trait:'boss',hp:8,speed:28,range:36},
+  tombemperor: {name:'황금 무덤의 황제',en:'Tomb Emperor',shape:'boss',color:'#e0bc70',trait:'boss',hp:8,speed:26,range:36},
+  thornking: {name:'고대 가시왕',en:'Thornroot King',shape:'boss',color:'#91be76',trait:'boss',hp:8,speed:24,range:40},
+  gatekeeper: {name:'용암문의 집행자',en:'Gate Executioner',shape:'boss',color:'#ed9762',trait:'boss',hp:8,speed:28,range:40},
   ashlord: { name: '재의 군주 바라칸', en: 'Barakhan, Lord of Cinders', shape: 'boss', color: '#d4683a', trait: 'boss', hp: 14, speed: 24, range: 36 },
-  fallen: { name: '폴른', en: 'Fallen', shape: 'imp', color: '#a7644e', trait: 'coward', hp: .8, speed: 30 },
-  shaman: { name: '폴른 샤먼', en: 'Fallen Shaman', shape: 'shaman', color: '#c38459', trait: 'revive', hp: .8, speed: 18, range: 85 },
+  fallen: { name: '잿불 발톱', en: 'Emberclaw', shape: 'imp', color: '#a7644e', trait: 'coward', hp: .8, speed: 30 },
+  shaman: { name: '뼈가면 술사', en: 'Bone-mask Ritualist', shape: 'shaman', color: '#c38459', trait: 'revive', hp: .8, speed: 18, range: 85 },
   zombie: { name: '좀비', en: 'Zombie', shape: 'zombie', color: '#87917a', trait: 'tough', hp: 1.5, speed: 12 },
   skeleton: { name: '스켈레톤', en: 'Skeleton', shape: 'skeleton', color: '#c5c0a2', trait: 'melee', hp: 1, speed: 23 },
-  scarab: { name: '스캐럽 데몬', en: 'Scarab Demon', shape: 'beetle', color: '#ae925c', trait: 'charged', hp: 1.1, speed: 24 },
+  scarab: { name: '수정 갑충', en: 'Crystal Beetle', shape: 'beetle', color: '#ae925c', trait: 'charged', hp: 1.1, speed: 24 },
   mummy: { name: '미라', en: 'Mummy', shape: 'mummy', color: '#c2b58e', trait: 'tough', hp: 1.5, speed: 13 },
-  viper: { name: '클로 바이퍼', en: 'Claw Viper', shape: 'snake', color: '#aaa071', trait: 'charge', hp: 1, speed: 40 },
-  maggot: { name: '샌드 매곳', en: 'Sand Maggot', shape: 'worm', color: '#b3956d', trait: 'poison', hp: 1.3, speed: 14, range: 70 },
-  fetish: { name: '페티시 샤먼', en: 'Fetish Shaman', shape: 'shaman', color: '#9d9767', trait: 'revive', hp: .8, speed: 35, range: 65 },
-  hulk: { name: '쏜드 헐크', en: 'Thorned Hulk', shape: 'hulk', color: '#738b67', trait: 'tough', hp: 1.8, speed: 14 },
-  zealot: { name: '자카룸 질럿', en: 'Zakarum Zealot', shape: 'knight', color: '#ae9f73', trait: 'charge', hp: 1, speed: 34 },
-  council: { name: '카운슬 멤버', en: 'Council Member', shape: 'mage', color: '#a47860', trait: 'fire', hp: 1.2, speed: 20, range: 90 },
-  finger: { name: '핑거 메이지', en: 'Finger Mage', shape: 'ghost', color: '#a29ab5', trait: 'drain', hp: .9, speed: 24, range: 100 },
-  megademon: { name: '메가데몬', en: 'Megademon', shape: 'demon', color: '#bd6451', trait: 'fire', hp: 1.6, speed: 25 },
-  knight: { name: '오블리비언 나이트', en: 'Oblivion Knight', shape: 'knight', color: '#938b9f', trait: 'curse', hp: 1.1, speed: 21, range: 90 },
-  mother: { name: '바일 마더', en: 'Vile Mother', shape: 'hulk', color: '#a28476', trait: 'spawn', hp: 1.7, speed: 12 }
+  viper: { name: '흑요 칼뱀', en: 'Obsidian Serpent', shape: 'snake', color: '#aaa071', trait: 'charge', hp: 1, speed: 40 },
+  maggot: { name: '맹독 모래충', en: 'Venom Maw', shape: 'worm', color: '#b3956d', trait: 'poison', hp: 1.3, speed: 14, range: 70 },
+  fetish: { name: '덩굴 주술사', en: 'Vine Witch', shape: 'shaman', color: '#9d9767', trait: 'revive', hp: .8, speed: 35, range: 65 },
+  hulk: { name: '가시나무 거수', en: 'Thornwood Brute', shape: 'hulk', color: '#738b67', trait: 'tough', hp: 1.8, speed: 14 },
+  zealot: { name: '녹슨 파수꾼', en: 'Rusted Sentinel', shape: 'knight', color: '#ae9f73', trait: 'charge', hp: 1, speed: 34 },
+  council: { name: '잿빛 사교도', en: 'Ash Cultist', shape: 'mage', color: '#a47860', trait: 'fire', hp: 1.2, speed: 20, range: 90 },
+  finger: { name: '장막 망령', en: 'Shroud Wraith', shape: 'ghost', color: '#a29ab5', trait: 'drain', hp: .9, speed: 24, range: 100 },
+  megademon: { name: '현무암 거수', en: 'Basalt Brute', shape: 'demon', color: '#bd6451', trait: 'fire', hp: 1.6, speed: 25 },
+  knight: { name: '흑철 망령기사', en: 'Blackiron Knight', shape: 'knight', color: '#938b9f', trait: 'curse', hp: 1.1, speed: 21, range: 90 },
+  mother: { name: '포자 번식체', en: 'Spore Brood', shape: 'hulk', color: '#a28476', trait: 'spawn', hp: 1.7, speed: 12 }
 };
 export const MATERIALS = { iron: { name: '철 조각', color: '#b3b6b4' }, crystal: { name: '마력석', color: '#a69bce' }, soul: { name: '영혼 결정', color: '#cf8b71' }, relic: { name: '유물의 정수', color: '#f0c56a' } };
 export const STAT_NAMES = { atk: '공격력', def: '방어력', hp: '최대 체력', crit: '치명타', haste: '공격 속도', leech: '생명력 흡수', spell: '스킬 피해', petdamage: '소환수 피해', cooldown: '재사용 감소' };

@@ -1,7 +1,9 @@
+import {buildingSprite,campaignArtRevision} from './campaign-art.js';
 import { WORLD, HUB, REGIONS, ROADS, POIS, contains, regionAt, roadAt, segmentDistance, solidAt, HARBOR, RESERVE, coastX, riverX, terrainBlocked } from './world.js';
 import { canvasOf, rect, oval, poly, stroke, panel, pixelText, treeSprite, stoneSprite, martSprite, scale2x } from './pixel-art.js';
 const tiles={coast:['#889875','#92a282','#a1ab88','#889c82'],reserve:['#68766b','#728071','#7a8678','#627369'],hub:['#607148','#667950','#718158','#5d7049'],grass:['#607547','#657c4b','#6c8050','#718754'],sand:['#b59b69','#bda575','#c2aa7a','#c6ad7f'],jungle:['#355d48','#3b684d','#446e53','#4b7456'],hell:['#4d3f40','#513f40','#554341','#574643']};
 export function poiSprite(p){
+ const generated=buildingSprite(p);if(generated)return generated;
  if(p.type==='mart')return martSprite();
  const w=Math.ceil(p.width/2),h=Math.ceil(p.height/2)+8,canvas=canvasOf(w,h),c=canvas.getContext('2d'),r=(x,y,ww,hh,col)=>rect(c,x,y,ww,hh,col);
  if(p.type==='plot'){
@@ -99,7 +101,7 @@ function buildTerrain(){
    if(i%3===0){const w=44+rnd()*90;stroke(c,x-w,y,x+w,y-16,'#d9bd85',3);stroke(c,x-w+14,y+8,x+w,y-8,'#a48c5c',2);}
    if(i%9===0)add(stones.pillar,x,y);else if(i%7===0)add(stones.sand,x,y);continue;
   }
-  if(r===RESERVE){add(stones.rock,x,y);if(i%3===0)add(trees.oak,x+16,y+22);continue;}
+  if(r===RESERVE){if(Math.hypot(x-1808,y-416)<300)continue;add(stones.rock,x,y);if(i%3===0)add(trees.oak,x+16,y+22);continue;}
   if(r.biome==='hell'){
    // Sparse, no random lava streaks: the volcanic floor stays readable around the sealed gate.
    if(rnd()<.62)continue;if(i%4===0)add(trees.dead,x,y);else if(i%3===0)add(stones.rock,x,y);continue;
@@ -123,7 +125,7 @@ export function buildScene(town={decorations:[]}){
  const props=terrain.statics.filter(p=>!POIS.some(o=>Math.hypot(o.x-p.x,o.y-p.y)<130)),flats=[];
  const add=(sprite,x,y,kind='decoration')=>props.push({sprite,x,y,kind});
  add(hi('boat',boatSprite),160,1264,'boat');
- for(const p of POIS)add(hi(`poi:${p.type}:${p.width}x${p.height}`,()=>poiSprite(p)),p.x,p.y,'poi');
+ for(const p of POIS){const sprite=hi(`poi:${campaignArtRevision}:${p.type}:${p.width}x${p.height}`,()=>poiSprite(p));if(p.type==='final-seal')flats.push({sprite,x:p.x,y:p.y,arena:true});else add(sprite,p.x,p.y,'poi');}
  const path=hi('path',pathTile);
  for(const d of town.decorations){if(d.type==='path')flats.push({sprite:path,x:d.x,y:d.y});else add(hi(`deco:${d.type}`,()=>decorationSprite(d.type)),d.x,d.y);}
  return {background:terrain.background,props,flats};

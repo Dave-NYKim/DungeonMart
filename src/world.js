@@ -4,7 +4,7 @@ export const MART = { x: 1808, y: 1200 };
 export const ARRIVAL = { x: 528, y: 1136, berth: {x:208,y:1136}, reception: { x: 896, y: 1200 } };
 export const HUB = { id:'hub', x:1808,y:1200,rx:600,ry:420,name:'던전 마트 마을',biome:'hub',color:'#859d6c' };
 export const HARBOR = {id:'harbor',x:640,y:1120,rx:480,ry:360,name:'여명 항구',biome:'coast',color:'#87a698'};
-export const RESERVE = {id:'reserve',x:1800,y:320,name:'북부 미개척지',biome:'reserve',color:'#687e73'};
+export const RESERVE = {id:'reserve',x:1800,y:320,name:'종말의 봉인진',biome:'reserve',color:'#687e73'};
 export const REGIONS = [
  {id:'act-1',zone:0,x:752,y:1936,rx:660,ry:920,gate:{x:1104,y:1664},name:'잿빛 황야',biome:'grass',color:'#91ab68'},
  {id:'act-2',zone:1,x:1744,y:2240,rx:610,ry:410,gate:{x:1808,y:1648},name:'태양의 무덤',biome:'sand',color:'#ddbb76'},
@@ -13,6 +13,7 @@ export const REGIONS = [
 ];
 export const ROADS = [
  {id:'harbor-road',width:96,points:[{x:528,y:1136},{x:736,y:1264},{x:1104,y:1312},{x:1808,y:1312}]},
+ {id:'north-seal-road',width:96,points:[{x:1808,y:1312},{x:2368,y:1312},{x:2368,y:704},{x:1808,y:704},{x:1808,y:416}]},
  {id:'town-main',width:96,points:[{x:1808,y:1264},{x:1808,y:1568}]},
  {id:'west-trail',zone:0,width:80,points:[{x:1808,y:1472},{x:1392,y:1584},{x:1104,y:1776},{x:784,y:2048}]},
  {id:'dune-trail',zone:1,width:80,points:[{x:1808,y:1536},{x:1904,y:1776},{x:1648,y:1936},{x:1776,y:2160}]},
@@ -25,16 +26,17 @@ export const DEFAULT_POIS = [
  poi('mart','mart','던전 마트',1808,1200,224,182,'shop'),
  poi('arrival','arrival','여명 항구 · 헌터 선착장',528,1136,320,128,'recruit','active',false),
  poi('reception','reception','항구 등록소',896,1152,112,104,'recruit'),
- poi('spring','fountain','회복의 샘',2064,1216,80,64),
+ poi('spring','fountain','회복소',2064,1216,80,64),
  poi('notice','board','모험 게시판',1520,1248,64,72,'bestiary'),
  poi('forge-site','forge','대장간',1456,1024,160,144,'shop'),
  poi('warehouse-site','warehouse','창고',2192,1536,160,144,'shop'),
  poi('training-site','training','훈련장',2176,992,160,112,'training','active',false),
- poi('crypt','crypt','버려진 지하묘지',640,1872,160,128,'info','reserved',true,0),
- poi('oasis','oasis','침묵의 오아시스',2064,2352,144,96,'info','reserved',true,1),
- poi('tomb','tomb','봉인된 왕릉',1808,1920,184,152,'info','reserved',true,1),
- poi('temple','temple','덩굴 사원',3168,1984,184,144,'info','reserved',true,2),
- poi('rift','fortress','혼돈의 봉인문',3104,992,208,168,'info','reserved',true,3)
+ poi('final-seal','final-seal','종말의 봉인진',1808,480,440,320,'final-boss','active',false),
+ poi('crypt','crypt','버려진 지하묘지',640,1872,160,128,'act-boss','active',true,0),
+ poi('oasis','oasis','침묵의 오아시스',2064,2352,144,96,'rest','active',true,1),
+ poi('tomb','tomb','봉인된 왕릉',1808,1920,184,152,'act-boss','active',true,1),
+ poi('temple','temple','덩굴 사원',3168,1984,184,144,'act-boss','active',true,2),
+ poi('rift','fortress','혼돈의 봉인문',3104,992,208,168,'act-boss','active',true,3)
 ];
 export const POIS=DEFAULT_POIS.map(p=>({...p}));
 export const TOWN_BOUNDS={left:1280,right:2336,top:800,bottom:1600};
@@ -59,7 +61,7 @@ export function regionAt(x,y){
 export const contains=(r,x,y,margin=0)=>regionAt(x,y)?.id===r.id&&(!margin||Math.abs(x-r.x)<r.rx-margin&&Math.abs(y-r.y)<r.ry-margin);
 export function terrainBlocked(x,y){
  if(x>=220&&x<=640&&y>=1072&&y<=1152)return false; // pier over the western sea
- const r=regionAt(x,y);if(!r||r===RESERVE)return true;
+ const r=regionAt(x,y);if(!r)return true;if(r===RESERVE&&Math.hypot(x-1808,y-416)>270&&!roadAt(x,y))return true;
  if(roadAt(x,y))return false;
  if(y>1710&&Math.abs(x-riverX(y))<20)return true;
  return false;
@@ -97,4 +99,5 @@ export function validateTown(town){
 export const CAMPS=REGIONS.flatMap(r=>{const out=[],spots=[[0,0],[-.55,-.32],[.55,-.32],[-.62,.28],[.62,.28],[0,-.62],[0,.62],[-.32,.62],[.32,-.62],[.36,.6],[-.36,-.6],[-.7,0],[.7,0]];
  for(const [fx,fy] of spots){const x=Math.round(r.x+fx*r.rx),y=Math.round(r.y+fy*r.ry);if(regionAt(x,y)!==r||roadAt(x,y)||terrainBlocked(x,y)||POIS.some(p=>Math.hypot(p.x-x,p.y-y)<170))continue;out.push({id:`${r.id}-camp-${out.length}`,zone:r.zone,x,y,radius:120});}
  return out;});
-export const BOSS_LAIR={x:3104,y:1120};
+export const BOSS_LAIR={x:1808,y:416};
+export const ACT_BOSS_POIS=['crypt','tomb','temple','rift'];

@@ -37,7 +37,7 @@ test('version-one saves migrate positions while retaining money, gear, levels an
  for(let i=0;i<50;i++)tick(loaded,.1);assert.ok(restore(serialize(loaded)));
 });
 test('POIs have stable unique IDs and solid footprints are respected by movement',()=>{
- assert.equal(new Set(POIS.map(p=>p.id)).size,POIS.length);assert.ok(POIS.filter(p=>p.status==='reserved').length>=5);
+ assert.equal(new Set(POIS.map(p=>p.id)).size,POIS.length);assert.equal(POIS.filter(p=>p.interaction==='act-boss').length,4);
  for(const p of POIS.filter(p=>p.solid))assert.equal(isWalkable(p.x,p.y-p.height/2),false,p.id);
  assert.equal(isWalkable(32,1800),false,'western sea is impassable');
  const path=findPath({x:MART.x-140,y:MART.y+64},{x:MART.x+180,y:MART.y-200});let prev={x:MART.x-140,y:MART.y+64};for(const p of path){assert.ok(lineOpen(prev,p));prev=p;}assert.ok(path.length>1,'path routes around mart');

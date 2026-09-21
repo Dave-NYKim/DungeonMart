@@ -1,3 +1,5 @@
+import { remainingHeroSprite } from './remaining-hero-art.js';
+import { sorceressSprite } from './sorceress-art.js';
 import { barbarianSprite } from './barbarian-art.js';
 // Hand-drawn, layered pixel art. Every primitive lands on an integer pixel.
 // Hero frame: 24 × 32, foot anchor (12, 29). Equipment and costume share this rig.
@@ -42,7 +44,9 @@ export function pixelText(c,text,x,y,color,scale=1,center=false){
 }
 const heroCache=new Map();
 export function heroSprite(a,frame=0,attack=false,facing=0,moving=false){
+ if(a.body==='sorceress'){const sprite=sorceressSprite(frame,facing,attack?'attack':moving?'walk':'idle',a.tint);if(sprite)return sprite;}
  if(a.body==='barbarian'){const sprite=barbarianSprite(frame,facing,attack?'attack':moving?'walk':'idle',a.tint);if(sprite)return sprite;}
+ const generated=remainingHeroSprite(a.body,frame,facing,attack?'attack':moving?'walk':'idle',a.tint);if(generated)return generated;
  frame%=3;
  const key=JSON.stringify([a,frame,attack]);if(heroCache.has(key))return heroCache.get(key);
  const canvas=canvasOf(24,32),c=canvas.getContext('2d'),r=(x,y,w,h,col)=>rect(c,x,y,w,h,col);

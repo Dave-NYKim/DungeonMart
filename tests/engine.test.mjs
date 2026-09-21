@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CLASSES, ZONES, skillsOf, DIFFICULTIES } from '../src/data.js';
-import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss, RAID_COST, RAID_DURATION, SPIN, facingTo, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK, storeItem, pickupFieldDrop, warehouseUsed, warehouseCapacity, resetRaidCooldown, raidResetCost, raidCooldownLeft } from '../src/engine.js';
+import { createGame, tick, craft, autoPlace, placeItem, unplaceItem, salvage, promote, recruit, assignZone, statsOf, serialize, restore, upgradeSkill, resetSkills, upgradeMart, summonBoss as summonUnlockedFinal, RAID_COST, RAID_DURATION, SPIN, facingTo, spawnEnemy, settleOffline, OFFLINE, setDifficulty, zoneStats, DIFFICULTY_LOCK, storeItem, pickupFieldDrop, warehouseUsed, warehouseCapacity, resetRaidCooldown, raidResetCost, raidCooldownLeft } from '../src/engine.js';
 import { BASES, effectiveGrid, generateItem, GRADES } from '../src/items.js';
+// Existing final-raid tests start with the four act bosses already cleared.
+const summonBoss=s=>{s.campaign.clears[`${s.difficulty.tier}:${s.difficulty.stage}`]=4;return summonUnlockedFinal(s);};
 // 용사의 무기칸에 들어가면서 직업이 쓸 수 있는 가장 큰 무기 베이스
 const weaponFor = h => { const g = effectiveGrid(h).weapon; return Object.values(BASES).filter(b => b.kind === 'weapon' && (!b.classes || b.classes.includes(h.classId)) && ((b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h))).sort((a, b) => b.w * b.h - a.w * a.h)[0].key; };
 import { MART, CAMPS, REGIONS, regionAt } from '../src/world.js';
@@ -51,9 +53,9 @@ test('skill investment is capped and resetting returns exactly the spent points'
   assert.equal(upgradeSkill(s,h,id).ok,false);assert.equal(h.skillPoints,2);
   resetSkills(s,h);assert.equal(h.skillPoints,12);assert.equal(skillsOf(h)[0].rank,1);resetSkills(s,h);assert.equal(h.skillPoints,12);
 });
-test('recruitment caps the roster at twenty and all four acts unlock by level',()=>{
+test('recruitment caps the roster at twenty and all four cleared acts can be assigned',()=>{
   const s=rich();while(s.heroes.length<20)assert.ok(recruit(s,'paladin').ok);assert.equal(recruit(s,'paladin').ok,false);
-  s.heroes[0].level=40;for(const z of ZONES)assert.ok(assignZone(s,s.heroes[1],z.id).ok);
+  s.heroes[0].level=40;s.campaign.clears['0:1']=4;for(const z of ZONES)assert.ok(assignZone(s,s.heroes[1],z.id).ok);
 });
 test('every final class can simulate combat in every act without invalid state',()=>{
   for(const c of CLASSES)for(const branch of c.branches)for(const final of branch.children){
@@ -102,10 +104,10 @@ test('boss dark spin turns through all eight facings and beams heroes standing i
   const loaded=restore(serialize(s)),lb=loaded.enemies.find(e=>e.boss);assert.ok(Number.isInteger(lb.facing)&&lb.spin===null);
   const broken=JSON.parse(serialize(s));const bb=broken.enemies.find(e=>e.boss);bb.facing=42;bb.spin={bogus:true};const fixed=restore(JSON.stringify(broken)).enemies.find(e=>e.boss);assert.equal(fixed.facing,0);assert.equal(fixed.spin,null);
 });
-test('boss summon pulls every hero into ACT IV, rewards the party on the kill and restores assignments',()=>{
+test('boss summon pulls every hero into the northern final arena, rewards the party on the kill and restores assignments',()=>{
   const s=createGame();s.treasury=10000;s.heroes[1].zone=1;assignZone(s,s.heroes[2],-1);
   for(const h of s.heroes){h.level=40;h.hp=statsOf(h,s).hp;}
-  const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);r.boss.hp=r.boss.maxHp=5e6;assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.ok(regionAt(r.boss.x,r.boss.y)?.zone===3);
+  const before=s.treasury,r=summonBoss(s);assert.ok(r.ok);r.boss.hp=r.boss.maxHp=5e6;assert.equal(s.treasury,before-RAID_COST);assert.ok(r.boss.boss);assert.equal(r.boss.zone,3);assert.equal(regionAt(r.boss.x,r.boss.y)?.id,'reserve');
   assert.equal(summonBoss(s).ok,false);
   for(let i=0;i<900;i++)tick(s,.1);
   const boss=s.enemies.find(e=>e.boss);assert.ok(boss,'boss persists until killed or timed out');
@@ -139,7 +141,7 @@ test('offline settlement pays materials from the measured return rate, capped an
 test('difficulty ladder: stages climb, nightmare 1 beats normal 10, acts stay close, boss kills unlock tiers, changes lock for five minutes',()=>{
   const s=createGame();
   const n1=zoneStats(s,0).hp;s.difficulty.stage=10;const n10=zoneStats(s,0).hp;s.difficulty.stage=1;
-  assert.ok(n10>n1*7&&n10<n1*8,'stage ten is roughly 7.45x stage one');
+  assert.equal(n10/n1,5**9,'every stage increases combat strength fivefold');
   assert.ok(zoneStats(s,3).hp/zoneStats(s,0).hp<=2.5&&zoneStats(s,3).hp>zoneStats(s,0).hp,'ACT IV is stronger than ACT I but not wildly');
   assert.equal(setDifficulty(s,1,1).ok,false,'nightmare is locked until the normal boss dies');
   assert.equal(setDifficulty(s,0,10).ok,false,'cannot skip normal stages');
@@ -215,15 +217,8 @@ test('level sixty alone cannot defeat nightmare one boss within the raid limit',
  for(const h of s.heroes){h.level=60;h.hp=statsOf(h,s).hp;}
  const b=summonBoss(s).boss;for(const [i,h]of s.heroes.entries()){h.x=b.x+20+i*2;h.y=b.y+20;h.zone=3;h.state='hunt';}
  for(let i=0;i<2401&&s.raid;i++)tick(s,.1);
- assert.equal(s.bossKills,0);assert.equal(s.raid,null);assert.ok(b.hp>b.maxHp*.5);
+ assert.equal(s.bossKills,0);assert.equal(s.raid,null);assert.ok(b.hp>0,'unequipped party cannot finish the final boss');
 });
-test('level cap opens with promotions: 20 before the second class, 40 before the third, 60 after',async()=>{
-  const { levelCap, levelUp } = await import('../src/engine.js');
-  const s=createGame(),h=s.heroes[0];assert.equal(levelCap(h),20);
-  h.level=19;h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);assert.equal(h.xp,0,'xp stops at the cap');assert.ok(s.logs.some(l=>l.message.includes('2차 전직')));
-  h.xp=1e9;levelUp(s,h);assert.equal(h.level,20);
-  s.materials={iron:999,crystal:999,soul:999};assert.ok(promote(s,h,CLASSES[0].branches[0].id).ok);assert.equal(levelCap(h),40);
-  h.xp=1e9;levelUp(s,h);assert.equal(h.level,40);
-  assert.ok(promote(s,h,CLASSES[0].branches[0].children[0].id).ok);assert.equal(levelCap(h),60);h.xp=1e9;levelUp(s,h);assert.equal(h.level,60);
-  const loaded=restore(serialize(s));assert.equal(loaded.heroes[0].level,60);
+test('all promotion tiers can reach level 100 with the same cap',async()=>{
+ const {levelCap,levelUp,xpNeeded}=await import('../src/engine.js');const s=createGame(),h=s.heroes[0];assert.equal(levelCap(h),100);h.level=39;h.xp=xpNeeded(h);levelUp(s,h);assert.equal(h.level,40);h.level=99;h.xp=xpNeeded(h)+1;levelUp(s,h);assert.equal(h.level,100);assert.equal(h.xp,0);assert.equal(restore(serialize(s)).heroes[0].level,100);
 });

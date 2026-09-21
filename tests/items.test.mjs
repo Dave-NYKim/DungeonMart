@@ -145,7 +145,7 @@ test('boss raids keep cooldowns without guaranteed loot, and bulk salvage yields
   const { summonBoss, RAID_COOLDOWN, raidCooldownLeft, salvageAll } = await import('../src/engine.js');
   const s = createGame(); s.treasury = 5000; for (const h of s.heroes) { h.level = 40; h.hp = statsOf(h, s).hp; }
   t.mock.method(Math, 'random', ()=>.5);
-  s.pity=999999;s.bossPity=999999;
+  s.pity=999999;s.bossPity=999999;s.campaign.clears['0:1']=4;
   const r = summonBoss(s); assert.ok(r.ok); assert.equal(raidCooldownLeft(s), RAID_COOLDOWN);
   r.boss.hp = 1; s.heroes[0].x = r.boss.x; s.heroes[0].y = r.boss.y; s.heroes[0].state = 'hunt'; s.heroes[0].zone = 3;
   for (let i = 0; i < 60 && s.raid; i++) tick(s, .1);

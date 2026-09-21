@@ -1,11 +1,12 @@
+import { defaultHeroName } from './hero-identity.js';
 import { CLASSES, ZONES, MONSTERS, MART, HERO_GRADES, classOf, skillsOf, nodesOf, BOSS_TYPE, DIFFICULTIES, STAGES, stageMult, ACT_FACTORS, BASE_MONSTER } from './data.js';
 import { BASES, GRADES, GEMS, RUNES, RUNE_LIST, SETS, MANTRAS, uniqueById, itemBase, itemStats, itemPassives, weightOf, priceOf, mantraFor, rollGrid, effectiveGrid, fits, findSpot, totalWeight, weightCapacity, activation, setProgress, summarizeGear, generateItem, rollDropGrade, rollCraftGrade, makeItem, insertStats, insertName, displayName, dims, levelReq, TIER_LEVEL } from './items.js';
 
-import { WORLD, ARRIVAL, CAMPS, REGIONS, BOSS_LAIR, contains, isWalkable, applyTownLayout, freshTown, validateTown, placementError, snapTown, DECORATIONS, TOWN_BOUNDS, currentTownLayout } from './world.js';
+import { WORLD, POIS, ARRIVAL, CAMPS, REGIONS, BOSS_LAIR, ACT_BOSS_POIS, contains, isWalkable, applyTownLayout, freshTown, validateTown, placementError, snapTown, DECORATIONS, TOWN_BOUNDS, currentTownLayout } from './world.js';
 import { moveEntity as move, nearestWalkable, displaceEntity } from './navigation.js';
 
 export const VERSION = 3;
-export const COMBAT_REVISION = 1;
+export const COMBAT_REVISION = 2;
 export const FIELD_DROP_TIME = 300, MAX_FIELD_DROPS = 20;
 export const WAREHOUSE_SIZES = [80, 100, 120, 144, 168, 192];
 const RES_KEY = { fire: 'resFire', cold: 'resCold', lightning: 'resLightning', poison: 'resPoison' };
@@ -13,11 +14,27 @@ export const MAX_HEROES = 20;
 const names = ['라그나', '모르트', '에이라', '세레나', '루시안', '카인', '리브', '애쉬', '노아', '베른', '이리스', '레온', '루나', '테오', '벨라', '시온', '레이', '에덴', '니아', '로웬'];
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-export const xpNeeded = h => Math.floor(35 + h.level * 17 + h.level ** 1.45 * 3);
-// 전직 차수에 따른 최대 레벨: 미전직 20, 2차 40, 3차 60.
-export const LEVEL_CAPS = [20, 40, 60];
+export const xpNeeded = h => {
+ const l=h.level,base=35+l*17+l**1.45*3;
+ return Math.floor(base*(l<10?1:4*1.22**(Math.min(l,39)-10))*(l>=40?12*1.24**(l-39):1));
+};
+// Every hero can reach level 100; promotions still unlock at 20 and 40.
+export const LEVEL_CAPS = [100, 100, 100];
 export const levelCap = h => LEVEL_CAPS[Math.min(h.path.length, 2)];
-export const availableZone = (s, z) => s.heroes.some(h => h.level >= ZONES[z].level);
+export const campaignKey=s=>`${s.difficulty.tier}:${s.difficulty.stage}`;
+export const actProgress=s=>s.campaign?.clears?.[campaignKey(s)]??0;
+export const availableZone=(s,z)=>Number.isInteger(z)&&z>=0&&z<4&&z<=actProgress(s);
+export const ACT_BOSS_TYPES=['cryptwarden','tombemperor','thornking','gatekeeper'];
+export const finalBossUnlocked=s=>actProgress(s)>=4;
+function rallyHeroes(s){for(const h of s.heroes){h.target=null;delete h.restStop;if(h.state==='dead')continue;if(h.state==='arrive'&&h.arrivalStage===-1){h.x=ARRIVAL.reception.x;h.y=ARRIVAL.reception.y;h.arrivalStage=2;h.arrivalWait=0;}h.state='depart';}}
+export function summonActBoss(s,zone){
+ if(!availableZone(s,zone))return {ok:false,message:'이전 액트 보스를 먼저 처치하세요.'};
+ if(s.raid)return {ok:false,message:'진행 중인 보스전을 먼저 끝내세요.'};
+ const poi=POIS.find(p=>p.id===ACT_BOSS_POIS[zone]),pos=nearestWalkable({x:poi.x,y:poi.y+110}),stats=bossStats(s),e={id:`e${s.nextId++}`,type:ACT_BOSS_TYPES[zone],zone,tier:s.difficulty.tier,...pos,hp:Math.round(stats.hp*[.18,.32,.5,.72][zone]),atk:Math.round(stats.atk*[.35,.5,.65,.8][zone]),boss:true,actBoss:zone,elite:false,cd:2,specialCd:5,summonCd:14,spinCd:12,facing:0,spin:null,contributors:{},dots:[],slow:0,stun:0,curse:0,fear:0,taunt:null,summoned:false};
+ e.maxHp=e.hp;s.enemies.push(e);s.raid={bossId:e.id,zone,kind:'act',started:s.time,ends:s.time+RAID_DURATION};rallyHeroes(s);log(s,`ACT ${zone+1} · ${MONSTERS[e.type].name} 도전!`,'boss');return {ok:true,message:'모든 용사가 액트 보스로 향합니다.',boss:e};
+}
+export function restAtOasis(s,h){if(s.raid||h.state==='dead'||!availableZone(s,1))return {ok:false,message:'지금은 휴식할 수 없습니다.'};h.restStop='oasis';h.state='return';h.target=null;return {ok:true,message:'오아시스로 이동해 회복합니다.'};}
+
 export const passiveValue = (h, key) => skillsOf(h).filter(s => s.passive && s.effect === key).reduce((v, s) => v + s.power * (1 + (s.rank - 1) * .16), 0) + (h._itemPassives?.[key] || 0);
 const gearCache = new WeakMap();
 const addStats = (into, from, mult = 1) => { for (const [k, v] of Object.entries(from || {})) into[k] = (into[k] || 0) + v * mult; return into; };
@@ -62,14 +79,14 @@ export function statsOf(h, s) {
 }
 export const powerOf = (h, s) => Math.round(statsOf(h, s).atk * 4 + statsOf(h, s).def * 2 + statsOf(h, s).hp * .12);
 export function makeHero(s, classId, grade = 0) {
-  const h = { id: `h${s.nextId++}`, name: names[s.heroes.length] || `용사 ${s.heroes.length + 1}`, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
+  const h = { id: `h${s.nextId++}`, name: defaultHeroName(classId,s.heroes.filter(h=>h.classId===classId).length), nameRevision: 1, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
     hp: 200, shield: 0, x: MART.x + (s.heroes.length % 5 - 2) * 36, y: MART.y + 64, zone: 0, standby: false, state: 'depart', target: null, cooldowns: {}, attackCd: 0, recovery: 0,
     bag: { iron: 0, crystal: 0, soul: 0, relic: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, grid: rollGrid(classId), placed: [], bagItems: [], reviveCd: 0, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
   h.hp = statsOf(h, s).hp;
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, campaign:{clears:{}}, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   for (const cls of CLASSES) s.heroes.push(makeHero(s, cls.id));
   log(s, '던전 마트 영업 시작. 다섯 용사가 황야로 향합니다.', 'system');
@@ -83,7 +100,7 @@ export function log(s, message, type = 'info') {
 }
 function effect(s, x, y, text, color = '#ddd0a7', kind = 'text', to = null) {
   if (s.effects.length > 160) s.effects.shift();
-  s.effects.push({ x, y, text, color, kind, to, life: kind === 'text' ? 1.1 : .45, max: kind === 'text' ? 1.1 : .45 });
+  s.effects.push({ x, y, text, color, kind, to, life: kind === 'text' ? 1.1 : kind.startsWith('boss-') ? .9 : .45, max: kind === 'text' ? 1.1 : kind.startsWith('boss-') ? .9 : .45 });
 }
 export const DIFFICULTY_LOCK = 300;
 function freshDifficulty() { return { tier: 0, stage: 1, unlocked: 0, unlockedStage: 1, lockedUntil: 0 }; }
@@ -101,7 +118,7 @@ export function setDifficulty(s, tier, stage) {
   if (wait > 0) return { ok: false, message: `난이도는 변경 후 5분 동안 고정됩니다. ${Math.ceil(wait / 60)}분 뒤에 다시 시도하세요.` };
   s.difficulty.tier = tier; s.difficulty.stage = stage; s.difficulty.lockedUntil = s.time + DIFFICULTY_LOCK;
   s.enemies = s.enemies.filter(n => n.boss || n.minion); s.corpses = [];
-  for (const h of s.heroes) h.target = null;
+  for (const h of s.heroes){h.target=null;if(!availableZone(s,h.zone)){h.zone=0;if(h.state==='hunt')h.state='depart';}}
   log(s, `난이도 변경: ${DIFFICULTIES[tier].name} ${stage}단계 · 몬스터가 새로 나타납니다.`, 'system');
   return { ok: true, message: `${DIFFICULTIES[tier].name} ${stage}단계로 변경했습니다. 5분 동안 고정됩니다.` };
 }
@@ -119,7 +136,7 @@ export function spawnEnemy(s, zone, elite = false, variant) {
   return e;
 }
 // During a boss raid every hero fights in ACT IV and standby is suspended.
-const zoneOf = (s, h) => s.raid ? 3 : h.zone;
+const zoneOf = (s, h) => s.raid ? (s.raid.zone??3) : h.zone;
 const restingOf = (s, h) => h.standby && !s.raid;
 export const RAID_COST = 500, RAID_DURATION = 240, RAID_COOLDOWN = 1200;
 export const raidCooldownLeft = s => Math.max(0, (s.raidReadyAt || 0) - s.time);
@@ -144,6 +161,7 @@ function heal(s, h, value, source = h) {
   for (const e of s.enemies) if (e.hp > 0 && e.contributors[h.id] && dist(e, source) < 180) e.contributors[source.id] = (e.contributors[source.id] || 0) + value * .5;
 }
 function hurtHero(s, h, raw, e, element = null) {
+  if(h.state==='dead'||h.hp<=0)return;
   const stat = statsOf(h, s);
   let value = Math.max(1, raw * 100 / (100 + stat.def * 4));
   if (element && RES_KEY[element]) value *= 1 - stat[RES_KEY[element]];
@@ -158,8 +176,8 @@ function hurtHero(s, h, raw, e, element = null) {
   if (e && stat.thorns) damage(s, h, e, stat.thorns, false, true);
   if (h.hp <= 0) {
     if (stat.revive > 0 && !(h.reviveCd > 0)) { h.hp = stat.hp * .5; h.reviveCd = 600; h.shield = 0; effect(s, h.x, h.y - 40, '부활!', '#ffe9a8'); log(s, `${h.name} · 장비의 힘으로 쓰러지지 않았습니다.`, 'level'); return; }
-    h.hp = 0; h.state = 'dead'; h.recovery = 10; h.x = MART.x + Math.random() * 35 - 18; h.y = MART.y + 45; h.pets = []; h.target = null;
-    log(s, `${h.name} 쓰러짐. 마트에서 10초 후 부활합니다.`, 'danger');
+    h.hp = 0; h.state = 'dead'; h.recovery = 12; h.soulAtClinic=false; h.buffs={};h.shield=0; h.pets = []; h.target = null;
+    log(s, `${h.name} 쓰러짐. 영혼이 회복소로 돌아갑니다.`, 'danger');
   }
 }
 function damage(s, h, e, raw, spell = false, reactive = false) {
@@ -205,6 +223,11 @@ function darkBeam(s, e, facing) {
   effect(s, e.x, oy, '', '#a56cff', 'dark', { x: e.x + dx * SPIN.range, y: oy + dy * SPIN.range });
 }
 function bossBehaviour(s, e, target, targets, dt) {
+  if(Number.isInteger(e.actBoss)){
+    e.facing=facingTo(e,target);e.summonCd-=dt;
+    if(e.specialCd<=0){e.specialCd=[8,7,9,6][e.actBoss];const radius=[85,120,100,140][e.actBoss];for(const h of targets.filter(h=>dist(h,e)<radius))hurtHero(s,h,e.atk*[.9,1.1,.8,1.3][e.actBoss],e,e.actBoss===3?'fire':null);effect(s,e.x,e.y,'',MONSTERS[e.type].color,'boss-blast');effect(s,e.x,e.y-55,['묘역의 비명','왕릉의 심판','가시 폭발','용암 분출'][e.actBoss],MONSTERS[e.type].color);}
+    if(e.summonCd<=0){e.summonCd=18;if(s.enemies.filter(n=>n.minion&&n.hp>0).length<4){const n=spawnEnemy(s,e.zone,false,e.actBoss===0?3:0);Object.assign(n,nearestWalkable({x:e.x+60,y:e.y+40}));n.hp=n.maxHp=Math.round(n.maxHp*.5);n.minion=true;n.summoned=true;effect(s,n.x,n.y,'',MONSTERS[e.type].color,'boss-summon');}}return;
+  }
   e.summonCd = (e.summonCd ?? 12) - dt; e.spinCd = (e.spinCd ?? SPIN.first) - dt;
   if (e.spin) {
     const step = Math.min(7, Math.floor((s.time - e.spin.started) / SPIN.step));
@@ -220,42 +243,51 @@ function bossBehaviour(s, e, target, targets, dt) {
   if (e.specialCd <= 0) {
     e.specialCd = 7;
     for (const h of s.heroes) if (h.state === 'hunt' && dist(h, e) < 110) hurtHero(s, h, e.atk * .7, null);
-    effect(s, e.x, e.y, '', '#ff8a3c', 'ring'); effect(s, e.x, e.y - 40, '잿불 폭발', '#ffb457');
+    effect(s, e.x, e.y, '', '#ff8a3c', 'boss-blast'); effect(s, e.x, e.y - 40, '잿불 폭발', '#ffb457');
   }
   if (e.summonCd <= 0) {
     e.summonCd = 15;
     const minions = s.enemies.filter(n => n.minion && n.hp > 0).length;
     for (let i = 0; i < 2 && minions + i < 6; i++) { const n = spawnEnemy(s, 3, false, i); n.x = e.x + (i ? 40 : -40); n.y = e.y + 20; n.hp = Math.round(n.maxHp * .35); n.maxHp = n.hp; n.summoned = true; n.minion = true; }
+    effect(s, e.x, e.y, '', '#c9a0ff', 'boss-summon');
     effect(s, e.x, e.y - 40, '부하 소환', '#c9a0ff');
   }
 }
 // Fixed difficulty targets: equipment improves the party without strengthening its opponent.
 export function bossStats(s) {
   const d = difficultyOf(s), stage = s.difficulty.stage;
-  return { hp: Math.round(d.bossHp * stageMult(stage) * Math.max(1, s.heroes.length / 5)), atk: Math.round(d.bossAtk * 1.16 ** (stage - 1)) };
+  return { hp: Math.round(d.bossHp * stageMult(stage) * Math.max(1, s.heroes.length / 5)), atk: Math.round(d.bossAtk * stageMult(stage)) };
 }
 export function summonBoss(s) {
   const m = MONSTERS[BOSS_TYPE];
+  if(!finalBossUnlocked(s))return {ok:false,message:'ACT 4 보스 처치 후 최종보스를 소환할 수 있습니다.'};
   if (s.raid) return { ok: false, message: `${m.name}이(가) 이미 나타나 있습니다.` };
   if (raidCooldownLeft(s) > 0) { const left = raidCooldownLeft(s); return { ok: false, message: `봉인문이 아직 닫혀 있습니다. ${Math.ceil(left / 60)}분 후 다시 소환할 수 있습니다.` }; }
   if (s.treasury < RAID_COST) return { ok: false, message: `보스 소환에는 운영금 ${RAID_COST} G가 필요합니다.` };
-  if (!s.heroes.some(h => h.state !== 'arrive')) return { ok: false, message: '출전할 수 있는 용사가 없습니다.' };
+  if (!s.heroes.some(h => h.state !== 'dead')) return { ok: false, message: '출전할 수 있는 용사가 없습니다.' };
   s.treasury -= RAID_COST;
   const spawn = nearestWalkable(BOSS_LAIR), {hp, atk} = bossStats(s);
   const e = { id: `e${s.nextId++}`, type: BOSS_TYPE, zone: 3, x: spawn.x, y: spawn.y, hp, maxHp: hp, atk, elite: false, boss: true, minion: false,
     cd: 2, specialCd: 5, summonCd: 12, spinCd: SPIN.first, spin: null, facing: 0, contributors: {}, dots: [], slow: 0, stun: 0, curse: 0, fear: 0, taunt: null, summoned: false };
   s.enemies.push(e);
-  s.raid = { bossId: e.id, started: s.time, ends: s.time + RAID_DURATION }; s.raidReadyAt = s.time + RAID_COOLDOWN;
-  for (const h of s.heroes) { if (h.state === 'hunt' || h.state === 'depart') { h.state = 'depart'; h.target = null; } else if (h.state === 'recover' && h.hp >= statsOf(h, s).hp) h.state = 'depart'; }
+  s.raid = { bossId: e.id, zone:3,kind:'final', started: s.time, ends: s.time + RAID_DURATION }; s.raidReadyAt = s.time + RAID_COOLDOWN;
+  rallyHeroes(s);
   effect(s, e.x, e.y, '', m.color, 'ring');
-  log(s, `혼돈의 봉인문이 열렸다! ${m.name} 출현 · 모든 용사가 ACT IV로 출격합니다.`, 'boss');
-  return { ok: true, message: `${m.name} 소환! 모든 용사가 ACT IV로 향합니다.`, boss: e };
+  log(s, `혼돈의 봉인문이 열렸다! ${m.name} 출현 · 모든 용사가 마을 북쪽 봉인진으로 출격합니다.`, 'boss');
+  return { ok: true, message: `${m.name} 소환! 모든 용사가 마을 북쪽 봉인진으로 향합니다.`, boss: e };
 }
 function endRaid(s, outcome, e) {
-  const m = MONSTERS[BOSS_TYPE];
+  const m = MONSTERS[e?.type||BOSS_TYPE];
+  const act=e?.actBoss;
   s.raid = null;
   s.enemies = s.enemies.filter(n => !n.boss && !n.minion);
   for (const h of s.heroes) if (h.state === 'hunt' || h.state === 'depart') { h.state = h.standby ? 'return' : 'depart'; h.target = null; }
+  if(outcome==='win'&&Number.isInteger(act)){
+    const key=campaignKey(s),before=actProgress(s);s.campaign.clears[key]=Math.max(before,act+1);
+    const bounty=Math.round((250+act*150)*difficultyOf(s).reward);s.treasury+=bounty;
+    for(const h of s.heroes.filter(h=>e.contributors[h.id]>0)){h.kills++;h.xp+=zoneStats(s,act).xp*12;h.bag.soul+=act+1;levelUp(s,h);}
+    log(s,`${m.name} 처치 · ${bounty} G${act>=before?act===3?' · 최종보스 소환 해금':` · ACT ${act+2} 해금`:''}`,'boss');return;
+  }
   if (outcome === 'win') {
     const D = difficultyOf(s), zs = zoneStats(s, 3), participants = s.heroes.filter(p => e.contributors[p.id] > 0), bounty = Math.round(2000 * D.reward);
     for (const p of participants) { p.xp += zs.xp * 20; p.gold += zs.gold * 25; p.kills++; p.bag.soul += 3 * D.reward; levelUp(s, p); }
@@ -297,7 +329,7 @@ export function levelUp(s, h) {
   let gained = 0;
   const cap = levelCap(h);
   while (h.level < cap && h.xp >= xpNeeded(h)) { h.xp -= xpNeeded(h); h.level++; h.skillPoints++; gained++; }
-  if (h.level >= cap) { if (h.xp > 0 && cap < 60 && !h.capNotified) { h.capNotified = true; log(s, `${h.name} Lv.${cap} 상한 도달 · ${h.path.length + 2}차 전직을 해야 레벨이 계속 오릅니다.`, 'level'); } h.xp = 0; }
+  if(h.level>=cap)h.xp=0;
   if (gained) {
     h.hp = statsOf(h, s).hp;
     effect(s, h.x, h.y - 36, 'LEVEL UP', '#ead29a');
@@ -500,7 +532,7 @@ export function tick(s, dt) {
   for (const d of [...s.fieldDrops]) if (s.time >= d.expires) { const item = s.items[d.id]; if (!item) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); continue; } if (storeItem(s, d.id, '5분 경과')) { s.fieldDrops = s.fieldDrops.filter(x => x !== d); log(s, `${item.name}이(가) 창고에 자동 입고되었습니다.`, 'loot'); } else { d.expires = s.time + FIELD_DROP_TIME; log(s, `창고가 가득 차 ${item.name} 빛기둥이 5분 더 남아 있습니다. 창고를 정리하세요.`, 'danger'); } }
   for (const z of ZONES) {
     s.spawnCd[z.id] -= dt * s.spawnRates[z.id];
-    if (s.raid && z.id === 3) { const boss = s.enemies.find(n => n.id === s.raid.bossId && n.hp > 0); if (!boss) endRaid(s, 'lost'); else if (s.time >= s.raid.ends) endRaid(s, 'timeout'); }
+    if (s.raid && z.id === (s.raid.zone??3)) { const boss = s.enemies.find(n => n.id === s.raid.bossId && n.hp > 0); if (!boss) endRaid(s, 'lost'); else if (s.time >= s.raid.ends) endRaid(s, 'timeout',boss); }
     const count = s.enemies.filter(e => e.zone === z.id && e.hp > 0).length;
     const desired = Math.min(18, 7 + s.heroes.filter(h => zoneOf(s, h) === z.id && !restingOf(s, h)).length);
     if (count < desired && s.spawnCd[z.id] <= 0) { const elite = s.zoneKills[z.id] >= 18 && !s.enemies.some(e => e.zone === z.id && e.elite && e.hp > 0); if (elite) s.zoneKills[z.id] = 0; spawnEnemy(s, z.id, elite); s.spawnCd[z.id] = 1.8; }
@@ -513,7 +545,15 @@ export function tick(s, dt) {
     h.reviveCd = Math.max(0, (h.reviveCd || 0) - dt);
     if (st.regen > 0 && h.state !== 'dead' && h.hp < st.hp) h.hp = Math.min(st.hp, h.hp + st.regen * dt);
     if (!h.buffs.shield && !h.buffs.guard) h.shield = Math.max(0, h.shield - dt * 4);
-    if (h.state === 'dead') { h.recovery -= dt; if (h.recovery <= 0) { h.state = 'recover'; h.hp = st.hp * .35; deposit(s, h); } continue; }
+    if (h.state === 'dead') {
+      const clinic=POIS.find(p=>p.id==='spring'),goal={x:clinic.x,y:clinic.y+12},d=dist(h,goal);
+      h.hp=0;h.pets=[];h.target=null;
+      if(d>3){h.soulAtClinic=false;const step=Math.min(d,160*dt);h.x+=(goal.x-h.x)/d*step;h.y+=(goal.y-h.y)/d*step;}
+      else {h.x=goal.x;h.y=goal.y;h.soulAtClinic=true;h.recovery=Math.max(0,h.recovery-dt);
+        if(h.recovery===0){h.hp=st.hp;h.state=restingOf(s,h)?'recover':'depart';h.soulAtClinic=false;Object.assign(h,nearestWalkable({x:clinic.x,y:clinic.y+44}));deposit(s,h);log(s,`${h.name} · 회복소에서 부활했습니다.`,'level');}
+      }continue;
+    }
+    if(s.raid&&['arrive','return','recover'].includes(h.state)){if(h.state==='arrive'&&h.arrivalStage===-1){h.x=ARRIVAL.reception.x;h.y=ARRIVAL.reception.y;h.arrivalStage=2;h.arrivalWait=0;}h.state='depart';h.target=null;delete h.restStop;}
     if (h.state === 'arrive') {
       if(h.arrivalStage===-1){h.arrivalWait=Math.max(0,h.arrivalWait-dt);h.x=ARRIVAL.berth.x-(h.arrivalWait/4)*160;h.y=ARRIVAL.y;if(h.arrivalWait===0){h.arrivalStage=0;h.x=240;}}
       else if(h.arrivalStage===0){if(move(h,ARRIVAL.reception,76,dt)){h.arrivalStage=1;h.arrivalWait=1.5;}}
@@ -524,19 +564,20 @@ export function tick(s, dt) {
     if (h.buffs.poison > 0) { hurtHero(s, h, 5 * dt, null); if (h.state === 'dead') continue; }
     if (h.state === 'recover') {
       h.hp = Math.min(st.hp, h.hp + st.hp * (.12 + s.upgrades.clinic * .04) * dt);
-      if (h.hp >= st.hp) { h.pets = []; if (!restingOf(s, h)) h.state = 'depart'; }
+      if (h.hp >= st.hp) {delete h.restStop; h.pets = []; if (!restingOf(s, h)) h.state = 'depart'; }
       continue;
     }
     if (restingOf(s, h) && (h.state === 'depart' || h.state === 'hunt')) { h.state = 'return'; h.target = null; }
-    if (h.state === 'return' || h.hp < st.hp * .28 || (h.bagKills >= 12 && !s.raid)) {
+    if (!s.raid&&(h.state === 'return' || h.hp < st.hp * .28 || h.bagKills >= 12)) {
       h.state = 'return'; h.target = null;
-      if (move(h, { x: MART.x + (Number(h.id.slice(1)) % 5 - 2) * 36, y: MART.y + 64 }, 112 * (1 + st.move), dt)) { deposit(s, h); h.state = 'recover'; }
+      const stop=h.restStop==='oasis'?POIS.find(p=>p.id==='oasis'):null;
+      if (move(h, stop?nearestWalkable({x:stop.x,y:stop.y+48}):{ x: MART.x + (Number(h.id.slice(1)) % 5 - 2) * 36, y: MART.y + 64 }, 112 * (1 + st.move), dt)) { deposit(s, h); h.state = 'recover'; }
       continue;
     }
     const zoneId = zoneOf(s, h), z = ZONES[zoneId], boss = s.raid && s.enemies.find(e => e.id === s.raid.bossId && e.hp > 0), dest = boss || z;
     if (h.state === 'depart') { if (move(h, dest, 112 * (1 + st.move), dt) || dist(h, dest) < (boss ? 150 : 130)) h.state = 'hunt'; continue; }
-    let target = s.enemies.find(e => e.id === h.target && e.hp > 0 && e.zone === zoneId);
-    if (!target) { target = s.enemies.filter(e => e.zone === zoneId && e.hp > 0).sort((a, b) => dist(a, h) - dist(b, h))[0]; h.target = target?.id; }
+    let target = s.enemies.find(e => e.id === h.target && e.hp > 0 && e.zone === zoneId && (!s.raid||e.boss||e.minion));
+    if (!target) { target = s.enemies.filter(e => e.zone === zoneId && e.hp > 0 && (!s.raid||e.boss||e.minion)).sort((a, b) => dist(a, h) - dist(b, h))[0]; h.target = target?.id; }
     if (!target) continue;
     const range = classOf(h).range;
     if (dist(h, target) > range) move(h, target, 58 * (1 + st.move * .5), dt);
@@ -563,6 +604,7 @@ export function tick(s, dt) {
     h.pets = h.pets.filter(p => p.life > 0);
   }
   for (const e of [...s.enemies]) {
+    e._attackPose=Math.max(0,(e._attackPose||0)-dt);e._casting=Math.max(0,(e._casting||0)-dt);e._moving=false;
     if (e.hp <= 0) continue;
     e.slow = Math.max(0, e.slow - dt); e.stun = Math.max(0, e.stun - dt); e.curse = Math.max(0, e.curse - dt); e.fear = Math.max(0, e.fear - dt);
     for (const dot of e.dots) { dot.life -= dt; dot.tick -= dt; if (dot.tick <= 0) { const h = s.heroes.find(h => h.id === dot.heroId); if (h) damage(s, h, e, dot.damage, false, true); dot.tick = 1; } }
@@ -575,9 +617,11 @@ export function tick(s, dt) {
     if (e.fear > 0 && !e.boss) { move(e, ZONES[e.zone], m.speed, dt); continue; }
     if (e.boss && e.spin) { bossBehaviour(s, e, target, targets, dt); continue; }
     const distance = dist(e, target);
-    if (distance > (m.range || 23)) move(e, target, m.speed * (e.slow ? .45 : 1), dt);
+    e._facing=target.x<e.x?-1:1;
+    if (distance > (m.range || 23)){const ox=e.x,oy=e.y;move(e, target, m.speed * (e.slow ? .45 : 1), dt);e._moving=Math.hypot(e.x-ox,e.y-oy)>.01;}
     e.cd -= dt; e.specialCd -= dt;
     if (e.cd <= 0 && distance < (m.range || 23) + 7) {
+      e._attackPose=.4;
       hurtHero(s, target, e.atk * (e.curse > 0 ? .75 : 1), e, m.trait === 'poison' ? 'poison' : m.trait === 'charged' ? 'lightning' : m.trait === 'drain' ? 'cold' : null);
       if (m.trait === 'poison') target.buffs.poison = 4 * (1 - statsOf(target, s).resPoison);
       if (m.trait === 'curse') target.buffs.weaken = 4;
@@ -587,13 +631,27 @@ export function tick(s, dt) {
     }
     if (e.boss) { bossBehaviour(s, e, target, targets, dt); continue; }
     if (e.specialCd <= 0) {
-      e.specialCd = 9;
+      e.specialCd = [9,7.5,6][e.tier??0];e._casting=.65;e._attackPose=.65;
+      const skillPower=[1.3,1.65,2][e.tier??0];
+      const skillNames={revive:'망자 부활',spawn:'포자 번식',fire:'화염 폭발',poison:'맹독 분사',curse:'쇠약의 눈',drain:'생기 흡수',charged:'전하 방출',charge:'돌진',tough:'지면 강타',melee:'강한 일격',coward:'발톱 난무'};
+      effect(s,e.x,e.y-55,skillNames[m.trait]||'강타',m.color);
+      effect(s,e.x,e.y,'',m.color,'ring');
+      if(['poison','curse','drain','charged'].includes(m.trait)){
+        const element={poison:'poison',drain:'cold',charged:'lightning'}[m.trait];
+        hurtHero(s,target,e.atk*skillPower,e,element||null);
+        if(m.trait==='poison')target.buffs.poison=4*(1-statsOf(target,s).resPoison);
+        if(m.trait==='curse')target.buffs.weaken=4;
+        if(m.trait==='drain')e.hp=Math.min(e.maxHp,e.hp+e.atk*.4);
+        effect(s,e.x,e.y-20,'',m.color,'line',{x:target.x,y:target.y-15});
+      }
+      if(['charge','tough','melee','coward'].includes(m.trait)){if(m.trait==='charge')move(e,target,150,.3);const reach=m.trait==='tough'?70:50;for(const victim of targets.filter(h=>dist(h,e)<reach)){hurtHero(s,victim,e.atk*skillPower,e);effect(s,victim.x,victim.y,'',m.color,'ring');}}
+
       if (m.trait === 'revive') {
         const i = s.corpses.findIndex(c => c.zone === e.zone && !c.revived && dist(c, e) < 130);
         if (i >= 0 && s.enemies.filter(n => n.zone === e.zone && n.hp > 0).length < 22) { const c = s.corpses.splice(i, 1)[0]; const n = spawnEnemy(s, e.zone); n.type = c.type; n.x = c.x; n.y = c.y; n.hp = n.maxHp * .4; n.revived = true; effect(s, n.x, n.y, '부활', '#b392c9'); }
       }
       if (m.trait === 'spawn' && s.enemies.filter(n => n.zone === e.zone && n.hp > 0).length < 22) { const n = spawnEnemy(s, e.zone, false, 0); n.x = e.x + 12; n.y = e.y; n.hp *= .3; n.maxHp = n.hp; n.summoned = true; }
-      if (m.trait === 'fire') { targets.filter(h => dist(h, target) < 65).forEach(h => hurtHero(s, h, e.atk * .6, null, 'fire')); effect(s, target.x, target.y, '', '#c77c50', 'ring'); }
+      if (m.trait === 'fire') { targets.filter(h => dist(h, target) < 65).forEach(h => hurtHero(s, h, e.atk * skillPower, e, 'fire')); effect(s, target.x, target.y, '', '#c77c50', 'ring'); }
     }
   }
   // Gentle spacing keeps a party legible while sharing the same road or target.
@@ -614,7 +672,7 @@ export function assignZone(s, h, zone) {
     log(s, `${h.name} → 마을 대기`);
     return { ok: true, message: `${h.name}이(가) 마트로 돌아와 대기합니다.` };
   }
-  if (!ZONES[zone] || !availableZone(s, zone)) return { ok: false, message: `용사 한 명이 Lv.${ZONES[zone]?.level || '?'}에 도달하면 열립니다.` };
+  if (!ZONES[zone] || !availableZone(s, zone)) return { ok: false, message: '이전 액트 보스를 처치하면 열립니다.' };
   const resumed = h.standby;
   h.zone = zone; h.target = null; h.standby = false;
   if (resumed && h.state === 'recover' && h.hp >= statsOf(h, s).hp) h.state = 'depart';
@@ -841,7 +899,7 @@ export function editTown(s, action) {
   else return {ok:false,message:'편집 도구를 선택하세요.'};
   if(!validateTown(next))return {ok:false,message:'시설 배치와 주요 도로를 확인하세요.'};
   s.town=next;applyTownLayout(s.town);
-  for(const h of s.heroes){if(h.arrivalStage===-1)continue;if(h.state==='recover'||h.state==='dead'){h.x=MART.x+(Number(h.id.slice(1))%5-2)*32;h.y=MART.y+48;}if(!isWalkable(h.x,h.y))Object.assign(h,nearestWalkable(h));}
+  for(const h of s.heroes){if(h.arrivalStage===-1)continue;if(h.state==='recover'){h.x=MART.x+(Number(h.id.slice(1))%5-2)*32;h.y=MART.y+48;}if(h.state!=='dead'&&!isWalkable(h.x,h.y))Object.assign(h,nearestWalkable(h));}
   return {ok:true,message:action.kind==='move'?'시설을 옮겼습니다.':'마을 배치를 저장했습니다.'};
 }
 export function serialize(s) { return JSON.stringify({ ...s, effects: [], savedAt: Date.now() }, (k, v) => k.startsWith('_') ? undefined : v); }
@@ -883,6 +941,10 @@ export function restore(raw) {
     if (!obj(s.difficulty)) s.difficulty = freshDifficulty();
     if (s.difficulty.unlockedStage === undefined) s.difficulty.unlockedStage = s.difficulty.tier === s.difficulty.unlocked ? s.difficulty.stage : 1;
     { const f = s.difficulty; if (![f.tier, f.stage, f.unlocked].every(Number.isInteger) || !DIFFICULTIES[f.tier] || !DIFFICULTIES[f.unlocked] || f.tier > f.unlocked || f.stage < 1 || f.stage > STAGES || !num(f.lockedUntil) || !Number.isInteger(f.unlockedStage) || f.unlockedStage < 1 || f.unlockedStage > STAGES || f.tier === f.unlocked && f.stage > f.unlockedStage) return null; }
+    const legacyCampaign=s.campaign===undefined;
+    if(legacyCampaign)s.campaign={clears:{[campaignKey(s)]:s.bossKills>0?4:0}};
+    if(!obj(s.campaign)||!obj(s.campaign.clears)||!Object.entries(s.campaign.clears).every(([k,v])=>/^[0-2]:(?:[1-9]|10)$/.test(k)&&Number.isInteger(v)&&v>=0&&v<=4))return null;
+    if(s.raid){s.raid.zone??=3;s.raid.kind??='final';if(!ZONES[s.raid.zone]||!['act','final'].includes(s.raid.kind))return null;}
     if (!obj(s.yield) || !obj(s.yield.rate) || !obj(s.yield.acc) || !num(s.yield.since) || !MATERIAL_KEYS.every(k => num(s.yield.rate[k]) && s.yield.rate[k] >= 0 && num(s.yield.acc[k]) && s.yield.acc[k] >= 0)) s.yield = freshYield(num(s.time) ? s.time : 0);
     if (s.savedAt !== undefined && !num(s.savedAt)) delete s.savedAt;
     if (s.raid !== null && (!obj(s.raid) || typeof s.raid.bossId !== 'string' || !num(s.raid.started) || !num(s.raid.ends))) return null;
@@ -891,13 +953,15 @@ export function restore(raw) {
     const ids = new Set();
     for (const h of s.heroes) {
       if (!obj(h) || !/^h\d+$/.test(h.id) || ids.has(h.id)) return null; ids.add(h.id);
+      if(ZONES[h.zone]&&!availableZone(s,h.zone)){h.zone=0;if(h.state==='hunt')h.state='depart';}
       h.grade ??= 0; h.standby = h.standby === true;
       if (!Number.isInteger(h.grade) || !HERO_GRADES[h.grade]) return null;
       if (typeof h.name !== 'string' || !CLASSES.some(c=>c.id===h.classId) || !Array.isArray(h.path) || h.path.length > 2 || !obj(h.grid) || !Array.isArray(h.placed) || !Array.isArray(h.bagItems) || !nums(h.skillRanks) || !nums(h.cooldowns) || !nums(h.buffs) || !nums(h.bag)) return null;
+      if(h.nameRevision!==1){if(names.includes(h.name)&&!h.customName)h.name=defaultHeroName(h.classId,s.heroes.slice(0,s.heroes.indexOf(h)).filter(other=>other.classId===h.classId).length);h.nameRevision=1;}
       h.reviveCd ??= 0; if (!num(h.reviveCd)) return null;
       if (!['weapon','armor','accessory'].every(z => obj(h.grid[z]) && Number.isInteger(h.grid[z].w) && Number.isInteger(h.grid[z].h) && h.grid[z].w >= 1 && h.grid[z].w <= 8 && h.grid[z].h >= 1 && h.grid[z].h <= 8)) return null;
       if (!['hp','xp','gold','x','y','attackCd','recovery','bagKills','kills','shield','skillPoints','soul','attacks'].every(k=>num(h[k])) || h.hp < 0 || h.gold < 0) return null;
-      if (!Number.isInteger(h.level) || h.level < 1 || h.level > 60 || !ZONES[h.zone] || !['hunt','depart','return','recover','dead','arrive'].includes(h.state)) return null;
+      if (!Number.isInteger(h.level) || h.level < 1 || h.level > 100 || !ZONES[h.zone] || !['hunt','depart','return','recover','dead','arrive'].includes(h.state)) return null;
       if (obj(h.bag)) h.bag.relic ??= 0;
       if (!['iron','crystal','soul','relic'].every(k=>num(h.bag[k]) && h.bag[k]>=0) || !obj(h.costume) || !['equipment','ash','crimson','forest','midnight'].includes(h.costume.palette)) return null;
       if (!Array.isArray(h.pets) || h.pets.length > 12 || !h.pets.every(p=>obj(p) && ['x','y','power','life','cd'].every(k=>num(p[k])) && ['skeleton','golem'].includes(p.kind))) return null;
@@ -910,8 +974,10 @@ export function restore(raw) {
       if (!obj(e) || !MONSTERS[e.type] || !ZONES[e.zone] || !/^e\d+$/.test(e.id) || !nums(e.contributors)) return null;
       if (!['hp','maxHp','atk','x','y','cd','specialCd','slow','stun','curse','fear'].every(k=>num(e[k])) || !Array.isArray(e.dots)) return null;
       if (!e.dots.every(d=>obj(d) && ['damage','life','tick'].every(k=>num(d[k])) && typeof d.heroId==='string')) return null;
+      if(e.actBoss!==undefined&&(!Number.isInteger(e.actBoss)||e.actBoss<0||e.actBoss>3||e.type!==ACT_BOSS_TYPES[e.actBoss]))return null;
       e.boss = e.boss === true; e.minion = e.minion === true; if (!Number.isInteger(e.tier) || !DIFFICULTIES[e.tier]) e.tier = 0; if (e.boss) { if (!num(e.summonCd)) e.summonCd = 12; if (!num(e.spinCd)) e.spinCd = SPIN.first; if (!Number.isInteger(e.facing) || e.facing < 0 || e.facing > 7) e.facing = 0; if (e.spin != null && !(obj(e.spin) && num(e.spin.started) && Number.isInteger(e.spin.step))) e.spin = null; }
     }
+    if(legacyCampaign&&s.raid?.kind==='final'){const boss=s.enemies.find(e=>e.id===s.raid.bossId);if(boss)Object.assign(boss,nearestWalkable(BOSS_LAIR));rallyHeroes(s);}
     if (s.raid && !s.enemies.some(e => e.boss && e.id === s.raid.bossId && e.hp > 0)) s.raid = null;
     if (!s.raid) s.enemies = s.enemies.filter(e => !e.boss && !e.minion);
     s.town ??= freshTown();
@@ -936,8 +1002,8 @@ export function restore(raw) {
       for (const enemy of s.enemies) {
         const ratio = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
         const zs = zoneStats(s, enemy.zone), bs = enemy.boss ? bossStats(s) : null;
-        enemy.maxHp = bs ? bs.hp : zs.hp * MONSTERS[enemy.type].hp * (enemy.elite ? 4 : 1) * (enemy.minion ? .35 : 1);
-        enemy.hp = enemy.maxHp * ratio; enemy.atk = bs ? bs.atk : zs.atk * (enemy.elite ? 1.7 : 1);
+        enemy.maxHp = bs ? Math.round(bs.hp*(Number.isInteger(enemy.actBoss)?[.18,.32,.5,.72][enemy.actBoss]:1)) : zs.hp * MONSTERS[enemy.type].hp * (enemy.elite ? 4 : 1) * (enemy.minion ? .35 : 1);
+        enemy.hp = enemy.maxHp * ratio; enemy.atk = bs ? Math.round(bs.atk*(Number.isInteger(enemy.actBoss)?[.35,.5,.65,.8][enemy.actBoss]:1)) : zs.atk * (enemy.elite ? 1.7 : 1);
       }
       s.combatRevision = COMBAT_REVISION;
     }
