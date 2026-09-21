@@ -351,4 +351,5 @@
 - 시뮬레이션(장비·스킬 없는 5인): 처치 가능 레벨 ACT1≈8, ACT2≈15, ACT3≈20, ACT4≈30, 최종≈35. 이전에는 Lv1 파티가 ACT1을 29초에 처치, Lv3 파티가 최종보스 처치.
 - 변경 파일: src/data.js, src/engine.js, src/app.js, README.md, tests/campaign.test.mjs(신규3), tests/engine.test.mjs·tests/items.test.mjs(5직업 전제 시나리오는 테스트 내 5인 로스터 헬퍼 사용).
 - 검증: npm test 68/68. 브라우저 스모크·실기기 미실시.
+- 배포: 커밋 c86ddf7 main push, GitHub Pages build built. 라이브 src/engine.js·data.js·app.js 로컬과 바이트 일치 확인. 기존 저장은 용사·진행 유지(새 규칙은 새 게임 시작 구성에만 적용, 쿨다운 필드는 복원 시 자동 추가).
 - 남은 문제: 경험치1/10과 새 보스 수치의 실제 체감(특히 Lv10 이후 성장 속도 대비 ACT3~최종) 플레이 피드백 필요.
