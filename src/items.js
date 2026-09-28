@@ -50,13 +50,13 @@ export const BASES = Object.fromEntries([
   W('greatstaff', ['대형 지팡이', '현자의 지팡이', '별의 기둥'], 2, 4, 10, 75, 2, ['sorceress', 'necromancer'], { atk: 16, spell: .28, cooldown: .04 }, { tags: ['caster'], glyph: 'staff' }),
   W('scythe', ['낫', '수확의 낫', '영혼 수확기'], 2, 3, 16, 55, 2, ['necromancer'], { atk: 24, petdamage: .12 }, { tags: ['necro'], glyph: 'skull' }),
   W('greatscythe', ['대낫', '망자의 낫', '종말의 낫'], 2, 4, 22, 80, 2, ['necromancer'], { atk: 34, petdamage: .22 }, { tags: ['necro'], glyph: 'skull' }),
-  A('cap', ['가죽 모자', '사냥꾼 모자', '그림자 두건'], 'head', 2, 2, 3, 20, { def: 5, hp: 10 }, { armorLevel: 0 }),
-  A('helm', ['철 투구', '기사 투구', '별철 투구'], 'head', 2, 2, 8, 35, { def: 12, hp: 15 }, { armorLevel: 1 }),
+  A('cap', ['가죽 모자', '사냥꾼 모자', '그림자 두건'], 'head', 2, 2, 3, 20, { def: 5, hp: 10 }, { classes: ['amazon', 'necromancer', 'sorceress'], armorLevel: 0 }),
+  A('helm', ['철 투구', '기사 투구', '별철 투구'], 'head', 2, 2, 8, 35, { def: 12, hp: 15 }, { classes: ['barbarian', 'paladin'], armorLevel: 1 }),
   A('crown', ['관', '왕관', '성자의 관'], 'head', 2, 2, 6, 45, { def: 8, spell: .05, gold: .05 }, { sockets: 3, armorLevel: 1 }),
-  A('robe', ['로브', '마도사 로브', '별의 로브'], 'body', 2, 3, 5, 30, { def: 8, hp: 20, spell: .06 }, { armorLevel: 0 }),
-  A('leather', ['가죽 갑옷', '강화 가죽', '그림자 가죽'], 'body', 2, 3, 10, 35, { def: 16, hp: 30 }, { armorLevel: 0 }),
-  A('chain', ['사슬 갑옷', '고리 갑옷', '용비늘 갑옷'], 'body', 2, 3, 22, 55, { def: 28, hp: 40 }, { armorLevel: 1 }),
-  A('plate', ['판금 갑옷', '기사 판금', '요새 갑주'], 'body', 2, 3, 40, 90, { def: 45, hp: 55, move: -.05 }, { armorLevel: 2, sockets: 5 }),
+  A('robe', ['로브', '마도사 로브', '별의 로브'], 'body', 2, 3, 5, 30, { def: 8, hp: 20, spell: .06 }, { classes: ['sorceress', 'necromancer'], armorLevel: 0 }),
+  A('leather', ['가죽 갑옷', '강화 가죽', '그림자 가죽'], 'body', 2, 3, 10, 35, { def: 16, hp: 30 }, { classes: ['barbarian', 'amazon'], armorLevel: 0 }),
+  A('chain', ['사슬 갑옷', '고리 갑옷', '용비늘 갑옷'], 'body', 2, 3, 22, 55, { def: 28, hp: 40 }, { classes: ['barbarian', 'paladin'], armorLevel: 1 }),
+  A('plate', ['판금 갑옷', '기사 판금', '요새 갑주'], 'body', 2, 3, 40, 90, { def: 45, hp: 55, move: -.05 }, { classes: ['paladin'], armorLevel: 2, sockets: 5 }),
   A('gloves', ['가죽 장갑', '사슬 장갑', '건틀릿'], 'hands', 2, 2, 3, 20, { def: 4, haste: .03 }),
   A('boots', ['가죽 장화', '사슬 장화', '판금 장화'], 'feet', 2, 2, 4, 22, { def: 4, move: .05 }),
   A('belt', ['허리띠', '전투 허리띠', '거인의 허리띠'], 'waist', 2, 1, 2, 18, { hp: 15, carry: .10 }),
@@ -161,7 +161,7 @@ export const MANTRAS = [
 // ---------------------------------------------------------------- 세트 · 유니크
 const piece = (baseKey, stats) => ({ baseKey, stats });
 export const SETS = {
-  mountain: { name: '산맥의 아들', classId: 'barbarian', ilvl: 20, pieces: [piece('axe2h', { atkPct: .40, leech: .04 }), piece('helm', { hp: 40, dr: .03 }), piece('plate', { defPct: .40, hp: 60 }), piece('gloves', { haste: .08 }), piece('boots', { move: .10, str: 10 }), piece('ring', { str: 15, hp: 30 })],
+  mountain: { name: '산맥의 아들', classId: 'barbarian', ilvl: 20, pieces: [piece('axe2h', { atkPct: .40, leech: .04 }), piece('helm', { hp: 40, dr: .03 }), piece('chain', { defPct: .40, hp: 60 }), piece('gloves', { haste: .08 }), piece('boots', { move: .10, str: 10 }), piece('ring', { str: 15, hp: 30 })],
     bonuses: [null, null, { stats: { str: 20 } }, { stats: { hpPct: .10 } }, { stats: { dr: .10 } }, { stats: { leech: .08, skills: 1 } }, { stats: { dr: .10 }, passives: { dual: 1 }, note: '쌍수 두 번째 무기 100% 적용' }] },
   bones: { name: '뼈 수확자', classId: 'necromancer', ilvl: 20, pieces: [piece('scythe', { petdamage: .30, spell: .15 }), piece('cap', { petdamage: .10, hp: 20 }), piece('robe', { def: 20, hp: 40, spell: .10 }), piece('gloves', { cooldown: .05 }), piece('boots', { move: .10 }), piece('amulet', { petdamage: .20, resAll: .08 })],
     bonuses: [null, null, { stats: { petdamage: .15 } }, { stats: { hpPct: .08 } }, { stats: { spell: .25 } }, { passives: { capacity: 1 }, note: '소환수 최대 +1' }, { passives: { capacity: 1 }, stats: { leech: .05 }, note: '소환수 최대 +1 추가' }] },

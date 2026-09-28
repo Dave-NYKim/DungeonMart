@@ -1,8 +1,9 @@
 // 장비 화면. hero 모드 = 용사 팝업의 통합 장비창(무기·방어구·장신구 구간) + 이 용사가 쓸 수 있는 창고 목록.
 // workshop 모드 = 마을 제작소: 제작, 창고 전체·분해, 박음돌 서랍, 조합, 시설. 게임 규칙은 engine.js/items.js에 있다.
+import { autoEquip } from './auto-equip.js';
 import { CLASSES, MATERIALS } from './data.js';
 import { BASES, GRADES, CRAFT_GRADES, GEMS, GEM_QUALITY, RUNES, RUNE_LIST, RUNE_TIER_COLORS, SETS, MANTRAS, uniqueById, itemBase, itemPassives, weightOf, gradeColor, displayName, describeStat, insertName, insertColor, effectiveGrid, dims, levelReq, TIER_NAMES, ZONE_NAMES, PASSIVE_NAMES, RECIPES, fits } from './items.js';
-import { statsOf, gearBonus, placeItem, autoPlace, unplaceItem, rotateItem, salvage, salvageAll, craft, craftCost, craftTierAllowed, insertSocket, combine, warehouseCapacity, warehouseUsed, salvageValue, WAREHOUSE_SIZES } from './engine.js';
+import { statsOf, gearBonus, placeItem, autoPlace, unplaceItem, rotateItem, salvage, salvageAll, randomCraft, craftTierAllowed, insertSocket, combine, warehouseCapacity, warehouseUsed, salvageValue, WAREHOUSE_SIZES } from './engine.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const MAT = { iron: '철 조각', crystal: '마력석', soul: '영혼 결정', relic: '유물의 정수' };
@@ -31,7 +32,7 @@ const classNames = b => b.classes ? b.classes.map(c => CLASSES.find(x => x.id ==
 const usable = (item, h) => { const b = itemBase(item); return !b.classes || b.classes.includes(h.classId); };
 
 export function installGearUI(host, ctx, mode = 'hero') {
-  const ui = { sel: null, insertSel: null, filter: 'all', sort: 'grade', craftCat: 'weapon', craftBase: 'sword1h', craftTier: 1 };
+  const ui = { sel: null, insertSel: null, filter: 'all', sort: 'grade' };
   let drag = null, suppressClick = false;
   const S = () => ctx.state(), H = () => ctx.hero();
   const salePrice = (item, h) => Math.round(item.price * (1 + (h ? statsOf(h, S()).price : 0)));
@@ -58,7 +59,7 @@ export function installGearUI(host, ctx, mode = 'hero') {
     return `<div class="gear-hero"><div><strong style="color:${CLASSES.find(c => c.id === h.classId).color}">${esc(h.name)}</strong> <small>Lv.${h.level} · 골드 ${ctx.fmt(h.gold)} G · 인벤토리 ${grid.weapon.w * grid.weapon.h + grid.armor.w * grid.armor.h + grid.accessory.w * grid.accessory.h}칸${h.classId === 'barbarian' ? ' · 쌍수 가능' : ''}</small></div><div class="weight-row" title="무게 100% 초과: 속도 -10% · 120% 초과: -25% · 150% 초과: 배치 불가"><span>무게 ${Math.round(st.weight)} / ${st.capacity}</span><div class="bar weight-bar ${load > 120 ? 'over2' : load > 100 ? 'over' : ''}"><span style="width:${Math.min(100, load / 1.5)}%"></span></div><span>${load}%</span></div>${sets ? `<div class="set-row">${sets}</div>` : ''}<div class="gear-stat-row">${[['공격력', Math.round(st.atk)], ['방어력', Math.round(st.def)], ['체력', Math.round(st.hp)], ['치명타', `${Math.round(st.crit * 100)}%`], ['공속', `${Math.round(st.haste * 100)}%`], ['이동', `${Math.round(st.move * 100)}%`], ['스킬', `${Math.round(st.spell * 100)}%`], ['발견', `${Math.round(st.find * 100)}%`]].map(([n, v]) => `<span><small>${n}</small><b>${v}</b></span>`).join('')}</div></div>`;
   }
   function warehouseRows(h, s, list) {
-    return list.map(i => { const b = itemBase(i), fit = h ? usable(i, h) && fitsSomewhere(i, h) : false; return `<div class="wh-item ${ui.sel === i.id ? 'selected' : ''}" data-drag-id="${i.id}" data-gear="select" data-id="${i.id}" style="--item-color:${gradeColor(i)}" title="${esc(itemTitle(i))}"><span class="wh-icon">${ctx.icon(iconFor(i))}</span><div class="wh-text"><strong>${esc(displayName(i))}</strong><small>${GRADES[i.grade].name} · ${TIER_NAMES[i.tier]} ${b.names[i.tier - 1]} · ${i.w}×${i.h} · ${weightOf(i)}kg · ${classNames(b)}${i.sockets ? ` · 홈 ${i.inserts.filter(Boolean).length}/${i.sockets}` : ''}</small>${priceHTML(i, h)}</div>${mode === 'hero' ? `<button class="small-button" data-gear="auto" data-id="${i.id}" ${fit ? '' : 'disabled'} title="${fit ? '빈 자리에 자동 배치' : !usable(i, h) ? '직업 제한' : h.level < levelReq(i) ? `Lv.${levelReq(i)} 필요` : '빈 자리 없음'}">배치</button>` : `<button class="small-button danger" data-gear="salvage" data-id="${i.id}" title="${Object.entries(salvageValue(i)).map(([k, v]) => `${MAT[k]} ${v}`).join(', ')}">분해</button>`}</div>`; }).join('');
+    return list.map(i => { const b = itemBase(i), fit = h ? usable(i, h) && h.level>=levelReq(i) && fitsSomewhere(i, h) : false; return `<div class="wh-item ${ui.sel === i.id ? 'selected' : ''}" data-drag-id="${i.id}" data-gear="select" data-id="${i.id}" style="--item-color:${gradeColor(i)}" title="${esc(itemTitle(i))}"><span class="wh-icon">${ctx.icon(iconFor(i))}</span><div class="wh-text"><strong>${esc(displayName(i))}</strong><small>${GRADES[i.grade].name} · ${TIER_NAMES[i.tier]} ${b.names[i.tier - 1]} · ${i.w}×${i.h} · ${weightOf(i)}kg · ${classNames(b)}${i.sockets ? ` · 홈 ${i.inserts.filter(Boolean).length}/${i.sockets}` : ''}</small>${priceHTML(i, h)}</div>${mode === 'hero' ? `<button class="small-button" data-gear="auto" data-id="${i.id}" ${fit ? '' : 'disabled'} title="${fit ? '빈 자리에 자동 배치' : !usable(i, h) ? '직업 제한' : h.level < levelReq(i) ? `Lv.${levelReq(i)} 필요` : '빈 자리 없음'}">배치</button>` : `<button class="small-button danger" data-gear="salvage" data-id="${i.id}" title="${Object.entries(salvageValue(i)).map(([k, v]) => `${MAT[k]} ${v}`).join(', ')}">분해</button>`}</div>`; }).join('');
   }
   function warehouseHTML(h, s) {
     let list = s.warehouse.map(id => s.items[id]).filter(Boolean);
@@ -84,7 +85,7 @@ export function installGearUI(host, ctx, mode = 'hero') {
     const canInsert = mode === 'workshop' && ui.insertSel && item.inserts.includes(null) && loc.text === '창고';
     const salvageText = Object.entries(salvageValue(item)).map(([k, v]) => `${MAT[k]} ${v}`).join(', ');
     const actions = mode === 'hero'
-      ? (!placedHere ? `<button class="primary-button" data-gear="auto" data-id="${item.id}" ${usable(item, h) && fitsSomewhere(item, h) && loc.text === '창고' ? '' : 'disabled'}>${item.purchased ? '배치' : `구매 · ${ctx.fmt(salePrice(item, h))} G`}</button>` : `<button class="small-button" data-gear="unplace" data-id="${item.id}">해제</button><button class="small-button" data-gear="rotate" data-id="${item.id}" ${item.w === item.h ? 'disabled' : ''}>회전</button>`)
+      ? (!placedHere ? `<button class="primary-button" data-gear="auto" data-id="${item.id}" ${usable(item, h) && h.level>=levelReq(item) && fitsSomewhere(item, h) && loc.text === '창고' ? '' : 'disabled'}>${item.purchased ? '배치' : `구매 · ${ctx.fmt(salePrice(item, h))} G`}</button>` : `<button class="small-button" data-gear="unplace" data-id="${item.id}">해제</button><button class="small-button" data-gear="rotate" data-id="${item.id}" ${item.w === item.h ? 'disabled' : ''}>회전</button>`)
       : `${loc.text === '창고' ? `<button class="small-button danger" data-gear="salvage" data-id="${item.id}">분해 · ${salvageText}</button>` : `<span class="muted">${loc.text}에 있는 장비입니다. 창고로 보낸 뒤 분해·조합할 수 있습니다.</span>`}${canInsert ? `<button class="small-button" data-gear="insert" data-id="${item.id}">${esc(insertName(ui.insertSel))} 박기</button>` : ''}`;
     return `<div class="gear-detail" style="--item-color:${gradeColor(item)}"><div class="detail-head"><span class="wh-icon big">${ctx.icon(iconFor(item))}</span><div><h4>${esc(displayName(item))}</h4><small>${item.mantra ? '진언 · ' : ''}${GRADES[item.grade].name} · ${TIER_NAMES[item.tier]} ${b.names[item.tier - 1]} · ${item.w}×${item.h} · ${weightOf(item)}kg · Lv.${levelReq(item)} · ${classNames(b)} · ${loc.text}</small>${priceHTML(item, h)}</div></div><ul class="detail-lines">${lines.map(l => `<li class="${l.kind}" ${l.color ? `style="color:${l.color}"` : ''}>${esc(l.text)}</li>`).join('')}</ul>${setBlock}<div class="detail-actions">${actions}</div>${recipes.length ? `<div class="detail-recipes">${recipes.map(([r, label]) => `<button class="small-button" data-gear="recipe" data-recipe="${r}" data-id="${item.id}">${RECIPES[r].name}<small>${label}</small></button>`).join('')}</div>` : ''}</div>`;
   }
@@ -94,11 +95,11 @@ export function installGearUI(host, ctx, mode = 'hero') {
     return `<div class="gear-drawer"><h4>박음돌 서랍 <small>보석 선택 → 장비 선택 · 같은 돌 3개로 합성 · 정수 ${s.materials.relic || 0}개</small></h4><div class="chip-row">${gems.map(([k, n]) => { const [g, q] = k.split(':'); return chip(`gem:${k}`, `${GEM_QUALITY[q]} ${GEMS[g].name}`, GEMS[g].color, n, n >= 3 && Number(q) < 4, `gem:${k}`); }).join('') || '<small class="muted">보석 없음</small>'}</div><div class="chip-row">${runes.map(([k, n]) => { const r = RUNES[k]; return chip(`rune:${k}`, `${r.name} <i>${r.tag}</i>`, RUNE_TIER_COLORS[r.tier - 1], n, n >= 3 && RUNE_LIST.indexOf(r) < RUNE_LIST.length - 1, `rune:${k}`); }).join('') || '<small class="muted">각인석 없음</small>'}</div><details class="mantra-list"><summary>진언 목록 · 발견 ${Object.keys(s.codex.mantras).length}/${MANTRAS.length}</summary><ul>${MANTRAS.map(m => { const found = s.codex.mantras[m.id]; return `<li class="${found ? 'have' : ''}"><b>${m.name}</b> · ${m.runes.length}홈 ${m.note} · ${found ? m.runes.map(r => RUNES[r].name).join(' → ') + ' · ' + Object.entries(m.stats).map(([k, v]) => describeStat(k, v)).filter(Boolean).join(', ') : '홈 있는 일반 장비에 각인석을 순서대로 박아 발견'}</li>`; }).join('')}</ul></details></div>`;
   }
   function craftHTML(h, s) {
-    const cat = ui.craftCat, bases = Object.values(BASES).filter(b => b.zone === cat), base = BASES[ui.craftBase]?.zone === cat ? BASES[ui.craftBase] : bases[0]; ui.craftBase = base.key;
-    const g = effectiveGrid(h)[cat], fit = (b => (b.w <= g.w && b.h <= g.h) || (b.h <= g.w && b.w <= g.h));
-    const cost = craftCost(ui.craftTier), costHTML = Object.entries(cost).map(([k, v]) => `<span class="${s.materials[k] < v ? 'insufficient' : ''}">${MATERIALS[k].name} ${v}</span>`).join('');
-    return `<div class="gear-craft"><h4>대장간 제작 <small>완성 장비는 창고로</small></h4><div class="form-row"><label>종류<select id="craft-cat">${Object.entries(ZONE_NAMES).map(([k, n]) => `<option value="${k}" ${cat === k ? 'selected' : ''}>${n.replace('칸', '')}</option>`).join('')}</select></label><label>베이스 <span class="muted">(✓ 착용 가능)</span><select id="craft-base">${bases.map(b => `<option value="${b.key}" ${base.key === b.key ? 'selected' : ''}>${b.names[ui.craftTier - 1]} ${b.w}×${b.h} · ${classNames(b)}${fit(b) && (!b.classes || b.classes.includes(h.classId)) ? ' ✓' : ''}</option>`).join('')}</select></label><label>단계<select id="craft-tier">${[1, 2, 3].map(t => `<option value="${t}" ${ui.craftTier === t ? 'selected' : ''} ${craftTierAllowed(s, t) ? '' : 'disabled'}>${TIER_NAMES[t]}${craftTierAllowed(s, t) ? '' : ` (제작대 Lv.${t === 2 ? 2 : 4})`}</option>`).join('')}</select></label></div><p class="craft-note">${base.names[ui.craftTier - 1]} · ${base.w}×${base.h} · ${base.weight}kg · 홈 최대 ${base.sockets} · ${Object.entries(base.implicit).map(([k, v]) => describeStat(k, v)).filter(Boolean).join(' · ') || '접사만 붙는 장신구'}${fit(base) ? '' : ` · <b class="warn">선택 용사 공간 부족</b>`}</p><p class="craft-random-note">${Object.entries(CRAFT_GRADES).map(([g,p])=>`${GRADES[g].name} ${Math.round(p*100)}%`).join(' · ')}<br>옵션 무작위 · 세트·유니크는 사냥 획득</p><div class="cost-row"><div class="costs">${costHTML}</div><button class="primary-button" data-gear="craft">${ctx.icon('axe')} 제작</button></div></div>`;
+    const tiers=[1,2,3].filter(t=>craftTierAllowed(s,t)).map(t=>TIER_NAMES[t]).join(' · ');
+    const blocked=s.materials.iron<8||warehouseUsed(s)>=warehouseCapacity(s);
+    return `<div class="gear-craft"><h4>무작위 장비 제작 <small>완성 장비는 창고로</small></h4><p class="craft-note">모든 직업의 무기·방어구·장신구 중 무작위로 만듭니다.<br>단계도 무작위: ${tiers}</p><p class="craft-random-note">${Object.entries(CRAFT_GRADES).map(([g,p])=>`${GRADES[g].name} ${Math.round(p*100)}%`).join(' · ')}<br>옵션 무작위 · 세트·유니크는 사냥 획득</p><div class="cost-row"><div class="costs">철 조각 8개</div><button class="primary-button" data-gear="craft" ${blocked?'disabled':''}>${ctx.icon('axe')} 무작위 제작</button></div>${blocked?`<p class="craft-note">${s.materials.iron<8?'철 조각이 부족합니다.':'창고가 가득 찼습니다.'}</p>`:''}</div>`;
   }
+
   function facilityHTML(s) {
     return `<div class="facility-grid">${[['forge', '제작대', '제작 아이템 레벨 +12 · Lv.2 2단, Lv.4 3단 베이스'], ['clinic', '회복 시설', '초당 회복 속도 +4%p'], ['warehouse', '창고', `보관 ${WAREHOUSE_SIZES[s.upgrades.warehouse]}개${s.upgrades.warehouse<5?' → '+WAREHOUSE_SIZES[s.upgrades.warehouse+1]+'개':''}`]].map(([id, n, d]) => `<div class="surface"><h3>${n} <span class="muted">Lv.${s.upgrades[id]}</span></h3><p>${d}</p><button class="small-button" data-action="facility" data-id="${id}" ${s.upgrades[id] >= 5 ? 'disabled' : ''}>${s.upgrades[id] >= 5 ? '최고 레벨' : `개선 · ${150 * (s.upgrades[id] + 1)} G`}</button></div>`).join('')}</div>`;
   }
@@ -106,7 +107,7 @@ export function installGearUI(host, ctx, mode = 'hero') {
     const s = S(), h = H(); if (!s.items[ui.sel]) ui.sel = null; if (ui.confirmSalvage && ui.confirmSalvage !== ui.sel) ui.confirmSalvage = null; if (ui.insertSel && (ui.insertSel.startsWith('gem:') ? !s.drawer.gems[ui.insertSel.slice(4)] : !s.drawer.runes[ui.insertSel.slice(5)])) ui.insertSel = null;
     const scroll = host.querySelector('.wh-list')?.scrollTop || 0;
     if (mode === 'town') host.innerHTML = `<div class="gear-layout workshop-layout">${ctx.townHeader ? ctx.townHeader() : ''}<section class="gear-right">${warehouseHTML(h, s)}</section>${detailHTML(h, s)}</div>`;
-    else if (mode === 'hero') host.innerHTML = `<div class="gear-layout hero-mode"><section class="gear-left">${heroPanel(h, s)}${inventoryHTML(h, s)}<p class="gear-hint">창고에서 구간으로 끌어다 놓거나 <b>배치</b>를 누르세요. 무기는 무기 구간, 방어구는 방어구 구간, 장신구는 장신구 구간에만 들어갑니다. 드래그 중 R 키로 회전. 회색 빗금은 조건 미달로 효과가 없는 장비입니다. 제작·분해·박음돌은 <b>마을 → 제작소</b>에서.</p></section><section class="gear-right">${warehouseHTML(h, s)}</section><section class="gear-bottom">${detailHTML(h, s)}</section></div>`;
+    else if (mode === 'hero') host.innerHTML = `<div class="gear-layout hero-mode"><section class="gear-left">${heroPanel(h, s)}<div class="auto-equip-controls"><button class="primary-button" data-gear="auto-equip">더 좋은 장비 자동 장착</button><p>공격·생존 능력, 세트 효과와 무게를 비교합니다. 미구매 장비는 용사 골드로 구매하며 교체 장비는 창고에 보관합니다.</p></div>${inventoryHTML(h, s)}<p class="gear-hint">창고에서 구간으로 끌어다 놓거나 <b>배치</b>를 누르세요. 무기는 무기 구간, 방어구는 방어구 구간, 장신구는 장신구 구간에만 들어갑니다. 드래그 중 R 키로 회전. 회색 빗금은 조건 미달로 효과가 없는 장비입니다. 제작·분해·박음돌은 <b>마을 → 제작소</b>에서.</p></section><section class="gear-right">${warehouseHTML(h, s)}</section><section class="gear-bottom">${detailHTML(h, s)}</section></div>`;
     else host.innerHTML = `<div class="gear-layout workshop-layout">${craftHTML(h, s)}<section class="gear-right">${warehouseHTML(null, s)}</section>${detailHTML(null, s)}${drawerHTML(s)}${facilityHTML(s)}</div>`;
     const list = host.querySelector('.wh-list'); if (list) list.scrollTop = scroll;
   }
@@ -115,6 +116,7 @@ export function installGearUI(host, ctx, mode = 'hero') {
     const b = e.target.closest('[data-gear]'); if (!b || b.disabled || suppressClick) return;
     const s = S(), h = H(), a = b.dataset.gear, id = b.dataset.id;
     if (a === 'select') { ui.sel = ui.sel === id && e.target.closest('.grid-item') ? null : id; render(); return; }
+    if (a === 'auto-equip') {ctx.result(autoEquip(s,h));return;}
     if (a === 'auto') { ui.sel = id; ctx.result(autoPlace(s, h, id)); return; }
     if (a === 'unplace') { ctx.result(unplaceItem(s, h, id)); return; }
     if (a === 'rotate') { ctx.result(rotateItem(s, h, id)); return; }
@@ -124,13 +126,12 @@ export function installGearUI(host, ctx, mode = 'hero') {
     if (a === 'recipe') { ctx.result(combine(s, b.dataset.recipe, { id })); return; }
     if (a === 'pick-insert') { ui.insertSel = ui.insertSel === b.dataset.key ? null : b.dataset.key; render(); return; }
     if (a === 'merge') { const [type, ...rest] = b.dataset.payload.split(':'); ctx.result(type === 'gem' ? combine(s, 'gemUp', { gem: rest.join(':') }) : combine(s, 'runeUp', { rune: rest[0] })); return; }
-    if (a === 'craft') { const r = craft(s, ui.craftBase, ui.craftTier); if (r.ok) ui.sel = r.item.id; ctx.result(r); return; }
+    if (a === 'craft') { const r = randomCraft(s); if (r.ok) ui.sel = r.item.id; ctx.result(r); return; }
   };
   const onChange = e => {
     const el = e.target; if (!el.id) return;
     if (el.id === 'wh-filter') ui.filter = el.value; if (el.id === 'wh-sort') ui.sort = el.value;
-    if (el.id === 'craft-cat') ui.craftCat = el.value; if (el.id === 'craft-base') ui.craftBase = el.value; if (el.id === 'craft-tier') ui.craftTier = Number(el.value);
-    if (['wh-filter', 'wh-sort', 'craft-cat', 'craft-base', 'craft-tier'].includes(el.id)) render();
+    if (['wh-filter', 'wh-sort'].includes(el.id)) render();
   };
   host.addEventListener('click', onClick); host.addEventListener('change', onChange);
   if (mode !== 'hero') return { render, ui, select: id => { ui.sel = id; } };

@@ -10,7 +10,7 @@ export const COMBAT_REVISION = 2;
 export const FIELD_DROP_TIME = 300, MAX_FIELD_DROPS = 20;
 export const WAREHOUSE_SIZES = [80, 100, 120, 144, 168, 192];
 const RES_KEY = { fire: 'resFire', cold: 'resCold', lightning: 'resLightning', poison: 'resPoison' };
-export const MAX_HEROES = 20;
+export const MAX_HEROES = 10, MAX_RESERVE = 10;
 const names = ['라그나', '모르트', '에이라', '세레나', '루시안', '카인', '리브', '애쉬', '노아', '베른', '이리스', '레온', '루나', '테오', '벨라', '시온', '레이', '에덴', '니아', '로웬'];
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -83,14 +83,14 @@ export function statsOf(h, s) {
 }
 export const powerOf = (h, s) => Math.round(statsOf(h, s).atk * 4 + statsOf(h, s).def * 2 + statsOf(h, s).hp * .12);
 export function makeHero(s, classId, grade = 0) {
-  const h = { id: `h${s.nextId++}`, name: defaultHeroName(classId,s.heroes.filter(h=>h.classId===classId).length), nameRevision: 1, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
+  const h = { id: `h${s.nextId++}`, name: defaultHeroName(classId,[...s.heroes,...(s.reserve||[])].filter(h=>h.classId===classId).length), nameRevision: 1, classId, grade, level: 1, xp: 0, gold: 100, path: [], skillRanks: {}, skillPoints: 0,
     hp: 200, shield: 0, x: MART.x + (s.heroes.length % 5 - 2) * 36, y: MART.y + 64, zone: 0, standby: false, state: 'depart', target: null, cooldowns: {}, attackCd: 0, recovery: 0,
     bag: { iron: 0, crystal: 0, soul: 0, relic: 0 }, bagKills: 0, kills: 0, arrivalStage: 0, arrivalWait: 0, grid: rollGrid(classId), placed: [], bagItems: [], reviveCd: 0, costume: { palette: 'equipment' }, pets: [], buffs: {}, soul: 0, attacks: 0 };
   h.hp = statsOf(h, s).hp;
   return h;
 }
 export function createGame() {
-  const s = { version: VERSION, campaign:{clears:{}}, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, actBossReadyAt: [0, 0, 0, 0], bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
+  const s = { version: VERSION, campaign:{clears:{}}, combatRevision: COMBAT_REVISION, worldRevision: WORLD.revision, town: freshTown(), nextId: 1, time: 0, day: 1, treasury: 0, operatingGrantApplied: true, materials: { iron: 48, crystal: 9, soul: 0, relic: 0 }, heroes: [], reserve: [], items: {}, warehouse: [], drawer: { gems: {}, runes: {} }, fieldDrops: [], pity: 0, codex: { sets: {}, uniques: {}, mantras: {}, setPieces: {} }, itemRev: 0, enemies: [], corpses: [], effects: [], logs: [], raid: null, actBossReadyAt: [0, 0, 0, 0], bossKills: 0, yield: freshYield(0), difficulty: freshDifficulty(), speed: 2, kills: 0, crafted: 0, sales: 0, upgrades: { forge: 0, clinic: 0, warehouse: 0 }, zoneKills: [0, 0, 0, 0], spawnCd: [0, 0, 0, 0], spawnRates: [1, 1, 1, 1], objectives: [] };
   applyTownLayout(s.town);
   s.heroes.push(makeHero(s, 'barbarian'));
   log(s, '던전 마트 영업 시작. 바바리안 한 명이 황야로 향합니다.', 'system');
@@ -409,7 +409,7 @@ export function salvageValue(item) { const out = {}; for (const [k, v] of Object
 function destroyItem(s, id) { delete s.items[id]; s.warehouse = s.warehouse.filter(x => x !== id); s.fieldDrops = s.fieldDrops.filter(d => d.id !== id); for (const h of s.heroes) { h.placed = h.placed.filter(p => p.id !== id); h.bagItems = h.bagItems.filter(x => x !== id); } s.itemRev++; }
 function locate(s, id) {
   if (s.warehouse.includes(id)) return { kind: 'warehouse' };
-  for (const h of s.heroes) { if (h.placed.some(p => p.id === id)) return { kind: 'hero', hero: h }; if (h.bagItems.includes(id)) return { kind: 'bag', hero: h }; }
+  for (const h of [...s.heroes,...(s.reserve||[])]) { if (h.placed.some(p => p.id === id)) return { kind: 'hero', hero: h }; if (h.bagItems.includes(id)) return { kind: 'bag', hero: h }; }
   if (s.fieldDrops.some(d => d.id === id)) return { kind: 'field' };
   return null;
 }
@@ -687,14 +687,15 @@ export function assignZone(s, h, zone) {
   return { ok: true, message: `${h.name}의 사냥터를 변경했습니다. 마트 경유 후 출발합니다.` };
 }
 export function recruit(s) {
-  if (s.heroes.length >= MAX_HEROES) return { ok: false, message: '최대 20명까지 영입할 수 있습니다.' };
+  s.reserve ??= [];
+  if (s.heroes.length >= MAX_HEROES && s.reserve.length >= MAX_RESERVE) return { ok: false, message: '대기소가 가득 찼습니다 (10명). 용사를 교체한 뒤 영입하세요.' };
   if (s.treasury < 120) return { ok: false, message: '마트 운영금 120 G가 필요합니다.' };
   const classId = CLASSES[Math.floor(Math.random() * CLASSES.length)].id;
   const roll = Math.random(); let total = 0;
   const grade = HERO_GRADES.findIndex(g => (total += g.chance) > roll);
-  s.treasury -= 120; const h = makeHero(s, classId, grade < 0 ? 3 : grade); h.x=ARRIVAL.berth.x-160;h.y=ARRIVAL.y;h.state='arrive';h.arrivalStage=-1;h.arrivalWait=4;s.heroes.push(h);
-  log(s, `${h.name} · ${HERO_GRADES[h.grade].name} ${classOf(h).name} 헌터 도착장에 도착`, 'level');
-  return { ok: true, message: `${h.name} 영입 완료`, hero: h };
+  s.treasury -= 120; const h = makeHero(s, classId, grade < 0 ? 3 : grade); h.x=ARRIVAL.berth.x-160;h.y=ARRIVAL.y;h.state='arrive';h.arrivalStage=-1;h.arrivalWait=4;const waiting=s.heroes.length>=MAX_HEROES;if(waiting){h.state='recover';h.arrivalStage=2;s.reserve.push(h);}else s.heroes.push(h);
+  log(s, `${h.name} · ${HERO_GRADES[h.grade].name} ${classOf(h).name} ${waiting?'대기소 입소':'헌터 도착장에 도착'}`, 'level');
+  return { ok: true, message: `${h.name} ${waiting?'대기소 입소':'영입 완료'}`, hero: h, waiting };
 }
 export function setSpawnRate(s, zone, rate) {
   if (!Number.isInteger(zone) || !ZONES[zone] || !Number.isInteger(rate) || rate < 1 || rate > 5) return { ok: false, message: '재생성 속도는 1~5배로 설정하세요.' };
@@ -705,6 +706,9 @@ export function setSpawnRate(s, zone, rate) {
 const gradeName = item => item.mantra ? '진언' : GRADES[item.grade].name;
 export function placeItem(s, h, id, zone, x, y, rotated = false) {
   const item = s.items[id]; if (!item) return { ok: false, message: '장비를 찾을 수 없습니다.' };
+  const base=itemBase(item);
+  if(base.classes&&!base.classes.includes(h.classId))return {ok:false,message:'이 직업은 착용할 수 없는 장비입니다.'};
+  if(h.level<levelReq(item))return {ok:false,message:`Lv.${levelReq(item)}부터 착용할 수 있습니다.`};
   const where = locate(s, id); if (!where || where.kind === 'field') return { ok: false, message: '먼저 빛기둥에서 획득하세요.' };
   if (where.kind === 'bag') return { ok: false, message: '귀환 후 창고에 입고되면 배치할 수 있습니다.' };
   if (itemBase(item).zone !== zone) return { ok: false, message: `${displayName(item)}은(는) ${zone === 'weapon' ? '무기칸' : zone === 'armor' ? '방어구칸' : '장신구칸'}에 놓을 수 없습니다.` };
@@ -762,11 +766,13 @@ const CRAFT_COST = { iron: 8 };
 export function craftCost(tier = 1) { const out = {}; for (const [k, v] of Object.entries(CRAFT_COST)) out[k] = Math.round(v * [1, 1, 2.5, 5][tier]); return out; }
 export const craftTierAllowed = (s, tier) => tier === 1 || (tier === 2 && s.upgrades.forge >= 2) || (tier === 3 && s.upgrades.forge >= 4);
 export function craft(s, baseKey, tier = 1, rng = Math.random) {
+  return craftWithCost(s,baseKey,tier,rng,craftCost(tier));
+}
+function craftWithCost(s,baseKey,tier,rng,cost) {
   const b = BASES[baseKey];
   if (!b || ![1, 2, 3].includes(tier)) return { ok: false, message: '제작 항목을 확인하세요.' };
   if (!craftTierAllowed(s, tier)) return { ok: false, message: `${tier}단 베이스 제작에는 제작대 Lv.${tier === 2 ? 2 : 4}가 필요합니다.` };
   if (warehouseUsed(s) + 1 > warehouseCapacity(s)) return { ok: false, message: '창고가 가득 찼습니다. 장비를 분해하거나 창고를 확장하세요.' };
-  const cost = craftCost(tier);
   if (Object.entries(cost).some(([k, v]) => s.materials[k] < v)) return { ok: false, message: '제작 재료가 부족합니다.' };
   for (const [k, v] of Object.entries(cost)) s.materials[k] -= v;
   const ilvl = Math.max(TIER_LEVEL[tier], 1 + s.upgrades.forge * 12 + Math.floor(Math.max(...s.heroes.map(h => h.level)) * .5));
@@ -774,6 +780,31 @@ export function craft(s, baseKey, tier = 1, rng = Math.random) {
   s.warehouse.push(item.id); s.crafted++;
   log(s, `${gradeName(item)} ${item.name} 제작 완료`, 'loot');
   return { ok: true, message: `${gradeName(item)} · ${item.name} 제작 완료`, item };
+}
+// One fixed price for the random draw; forge upgrades unlock its tier pool.
+export function randomCraft(s, rng = Math.random) {
+  const keys=Object.keys(BASES),tiers=[1,2,3].filter(t=>craftTierAllowed(s,t));
+  if(warehouseUsed(s)>=warehouseCapacity(s))return {ok:false,message:'창고가 가득 찼습니다.'};
+  if(s.materials.iron<8)return {ok:false,message:'철 조각 8개가 필요합니다.'};
+  const base=keys[Math.floor(rng()*keys.length)],tier=tiers[Math.floor(rng()*tiers.length)];
+  return craftWithCost(s,base,tier,rng,{iron:8});
+}
+export function replaceHero(s, outgoingId, incomingId) {
+  const index=s.heroes.findIndex(h=>h.id===outgoingId),ri=s.reserve.findIndex(h=>h.id===incomingId);
+  if(index<0||ri<0)return {ok:false,message:'교체할 용사를 확인하세요.'};
+  if(s.raid)return {ok:false,message:'보스 전투가 끝난 뒤 교체하세요.'};
+  const old=s.heroes[index],next=s.reserve[ri],returned=[...old.placed.map(p=>p.id),...old.bagItems,...next.placed.map(p=>p.id)];
+  if(warehouseUsed(s)+returned.length>warehouseCapacity(s))return {ok:false,message:`기존 장비 보관을 위해 창고 ${returned.length}칸을 비워 주세요.`};
+  s.warehouse.push(...returned);next.placed=[];
+  for(const [key,value]of Object.entries(old.bag))s.materials[key]=(s.materials[key]||0)+value;
+  next.level=old.level;next.xp=old.xp;next.path=[];next.skillRanks={};
+  next.skillPoints=old.skillPoints+Object.values(old.skillRanks).reduce((sum,rank)=>sum+rank*(rank-1)/2,0);
+  next.gold+=old.gold;next.zone=old.zone;next.standby=old.standby;next.state='recover';next.recovery=0;
+  next.target=null;next.pets=[];next.cooldowns={};next.buffs={};next.shield=0;next.attackCd=0;next.arrivalStage=2;next.arrivalWait=0;
+  delete next.restStop;delete next.capNotified;Object.assign(next,nearestWalkable({x:MART.x,y:MART.y+64}));
+  s.heroes[index]=next;s.reserve.splice(ri,1);s.itemRev++;next.hp=statsOf(next,s).hp;
+  log(s,`${old.name} 은퇴 · ${next.name}이(가) Lv.${next.level} 성장 계승`,'system');
+  return {ok:true,message:`${next.name} 교체 완료 · Lv.${next.level} 계승`,hero:next};
 }
 const drawerKey = key => key.startsWith('gem:') ? ['gems', key.slice(4)] : ['runes', key.slice(5)];
 export function drawerCount(s, key) { const [k, id] = drawerKey(key); return s.drawer[k][id] || 0; }
@@ -928,7 +959,9 @@ export function restore(raw) {
     if (!obj(s) || !safe(s) || ![1,2,VERSION].includes(s.version)) return null;
     const wasVersion = s.version;
     if (s.version < VERSION && !migrateItems(s)) return null;
-    if (!Array.isArray(s.heroes) || !s.heroes.length || s.heroes.length > MAX_HEROES || !obj(s.items) || Object.keys(s.items).length > 2000 || !Array.isArray(s.warehouse) || !Array.isArray(s.fieldDrops) || !Array.isArray(s.enemies) || s.enemies.length > 150) return null;
+    s.reserve ??= [];
+    if (!Array.isArray(s.reserve) || s.reserve.length > MAX_RESERVE) return null;
+    if (!Array.isArray(s.heroes) || !s.heroes.length || s.heroes.length + s.reserve.length > MAX_HEROES + MAX_RESERVE || !obj(s.items) || Object.keys(s.items).length > 2000 || !Array.isArray(s.warehouse) || !Array.isArray(s.fieldDrops) || !Array.isArray(s.enemies) || s.enemies.length > 150) return null;
     if (!['time','day','treasury','nextId','kills','crafted','sales'].every(k => num(s[k]) && s[k] >= 0) || !Number.isInteger(s.nextId)) return null;
     if (obj(s.materials)) s.materials.relic ??= 0;
     if (!nums(s.materials) || !['iron','crystal','soul','relic'].every(k => num(s.materials[k]) && s.materials[k] >= 0)) return null;
@@ -958,7 +991,7 @@ export function restore(raw) {
     if (!Number.isInteger(s.bossKills) || s.bossKills < 0) return null;
     if (!Array.isArray(s.spawnRates) || s.spawnRates.length !== 4 || !s.spawnRates.every(v => Number.isInteger(v) && v >= 1 && v <= 5)) return null;
     const ids = new Set();
-    for (const h of s.heroes) {
+    for (const h of [...s.heroes,...s.reserve]) {
       if (!obj(h) || !/^h\d+$/.test(h.id) || ids.has(h.id)) return null; ids.add(h.id);
       if(ZONES[h.zone]&&!availableZone(s,h.zone)){h.zone=0;if(h.state==='hunt')h.state='depart';}
       h.grade ??= 0; h.standby = h.standby === true;
@@ -1017,7 +1050,12 @@ export function restore(raw) {
     }
     for (const item of Object.values(s.items)) if (!s.fieldDrops.some(d => d.id === item.id)) recordAcquired(s, item, true);
     s.effects = [];
-    for (const h of s.heroes) gearBonus(h, s);
+    for(const h of [...s.heroes,...s.reserve]){
+      const forbidden=h.placed.filter(p=>{const b=itemBase(s.items[p.id]);return b.classes&&!b.classes.includes(h.classId);});
+      if(forbidden.length){s.warehouse.push(...forbidden.map(p=>p.id));h.placed=h.placed.filter(p=>!forbidden.includes(p));s.itemRev++;h.hp=Math.min(h.hp,statsOf(h,s).hp);}
+    }
+    if(s.heroes.length>MAX_HEROES)s.reserve.push(...s.heroes.splice(MAX_HEROES));
+    for (const h of [...s.heroes,...s.reserve]) gearBonus(h, s);
     return s;
   } catch { return null; } finally { applyTownLayout(previousTown); }
 }
@@ -1027,6 +1065,7 @@ function validateItems(s, ids, num, obj, nums) {
   const note = (id, where) => { if (seen.has(id)) return false; seen.set(id, where); return true; };
   for (const [id, i] of Object.entries(s.items)) {
     if (!obj(i) || i.id !== id || !/^i\d+$/.test(id) || ids.has(id)) return false; ids.add(id);
+    if(i.setId==='mountain'&&i.setIndex===2&&i.base==='plate'){i.base='chain';i.name=`${SETS.mountain.name}의 ${BASES.chain.names[i.tier-1]}`;}
     const b = BASES[i.base]; if (!b || ![1,2,3].includes(i.tier) || !GRADES[i.grade] || typeof i.name !== 'string' || typeof i.purchased !== 'boolean' || !nums(i.implicit) || !Array.isArray(i.affixes) || !Number.isInteger(i.sockets) || i.sockets < 0 || i.sockets > 6 || !Array.isArray(i.inserts) || i.inserts.length !== i.sockets || !i.inserts.every(INSERT_OK)) return false;
     if (!i.affixes.every(a => obj(a) && typeof a.name === 'string' && nums(a.stats)) || !num(i.ilvl) || !num(i.weight) || !num(i.price)) return false;
     if (i.setId !== null && i.setId !== undefined && (!SETS[i.setId] || !Number.isInteger(i.setIndex) || !SETS[i.setId].pieces[i.setIndex])) return false;
@@ -1036,7 +1075,7 @@ function validateItems(s, ids, num, obj, nums) {
   }
   for (const id of s.warehouse) if (!s.items[id] || !note(id, 'w')) return false;
   for (const d of s.fieldDrops) if (!obj(d) || !s.items[d.id] || !ZONES[d.zone] || !num(d.x) || !num(d.y) || !num(d.expires) || !note(d.id, 'f')) return false;
-  for (const h of s.heroes) {
+  for (const h of [...s.heroes,...s.reserve]) {
     for (const id of h.bagItems) if (!s.items[id] || !note(id, 'b')) return false;
     for (const p of h.placed) {
       if (!obj(p) || !s.items[p.id] || !['weapon','armor','accessory'].includes(p.zone) || itemBase(s.items[p.id]).zone !== p.zone || !Number.isInteger(p.x) || !Number.isInteger(p.y) || typeof p.rotated !== 'boolean' || !note(p.id, 'h')) return false;

@@ -26,7 +26,7 @@ test('crafting consumes materials and first placement purchases exactly once',()
   assert.ok(unplaceItem(s,h,r.item.id).ok);assert.ok(statsOf(h,s).atk<=startAtk+.001);assert.ok(salvage(s,r.item.id).ok);assert.ok(s.materials.iron>9992);
 });
 test('owned shared armor transfers between heroes without charging twice',()=>{
-  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'leather',1,()=>.5).item;
+  const s=rich(),a=s.heroes[0],b=s.heroes[1],item=craft(s,'gloves',1,()=>.5).item;
   assert.ok(autoPlace(s,a,item.id).ok);const bank=s.treasury,bGold=b.gold;
   assert.ok(autoPlace(s,b,item.id).ok);assert.equal(a.placed.length,0);assert.equal(b.placed[0].id,item.id);assert.equal(b.gold,bGold);assert.equal(s.treasury,bank);
 });
@@ -55,14 +55,14 @@ test('skill investment is capped and resetting returns exactly the spent points'
   assert.equal(upgradeSkill(s,h,id).ok,false);assert.equal(h.skillPoints,2);
   resetSkills(s,h);assert.equal(h.skillPoints,12);assert.equal(skillsOf(h)[0].rank,1);resetSkills(s,h);assert.equal(h.skillPoints,12);
 });
-test('recruitment caps the roster at twenty and all four cleared acts can be assigned',()=>{
-  const s=rich();while(s.heroes.length<20)assert.ok(recruit(s,'paladin').ok);assert.equal(recruit(s,'paladin').ok,false);
+test('recruitment caps active heroes at ten and reserves at ten and all four cleared acts can be assigned',()=>{
+  const s=rich();while(s.heroes.length+s.reserve.length<20)assert.ok(recruit(s,'paladin').ok);assert.equal(recruit(s,'paladin').ok,false);
   s.heroes[0].level=40;s.campaign.clears['0:1']=4;for(const z of ZONES)assert.ok(assignZone(s,s.heroes[1],z.id).ok);
 });
 test('every final class can simulate combat in every act without invalid state',()=>{
   for(const c of CLASSES)for(const branch of c.branches)for(const final of branch.children){
     const s=rich(),h=s.heroes.find(h=>h.classId===c.id);h.level=40;h.gold=10000;promote(s,h,branch.id);promote(s,h,final.id);
-    for(const base of [weaponFor(h),'chain','amulet'])assert.ok(autoPlace(s,h,craft(s,base).item.id).ok);
+    for(const base of [weaponFor(h),['barbarian','paladin'].includes(h.classId)?'chain':h.classId==='amazon'?'leather':'robe','amulet'])assert.ok(autoPlace(s,h,craft(s,base).item.id).ok);
     s.heroes=[h];
     for(const z of ZONES){h.zone=z.id;h.x=z.x;h.y=z.y;h.state='hunt';h.hp=statsOf(h,s).hp;
       for(let i=0;i<400;i++)tick(s,.1);
