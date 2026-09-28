@@ -52,7 +52,7 @@ function drawMonster(c,e,time){
  }
  const sprite=monsterSprite(m,Math.floor(time*5+e.x)%2,e.curse>0);oval(c,x,y+1,8*size,2*size,'#18241d88');c.imageSmoothingEnabled=false;c.drawImage(sprite,Math.round(x-16*size),Math.round(y-32*size),Math.round(32*size),Math.round(36*size));if(e.elite||e.hp<e.maxHp){panel(c,x-10,y-32*size-4,21,4,'#382f31');rect(c,x-9,y-32*size-3,Math.round(19*Math.max(0,e.hp/e.maxHp)),2,e.elite?'#e4b875':'#c57e72');}}
 export class WorldRenderer {
- constructor(canvas,minimap){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.surface=canvasOf(1,1);this.low=this.surface.getContext('2d');const scene=buildScene();this.bg=scene.background;this.props=scene.props;this.sceneRevision=-1;this.editing=false;this.editGhost=null;this.boat=scale2x(boatSprite());this.flats=[];this.camera=new Camera();this.previous=new Map();this.minimap=minimap;this.followId=null;this.hovered=null;this.resize();}
+ constructor(canvas,minimap){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.surface=canvasOf(1,1);this.low=this.surface.getContext('2d');const scene=buildScene();this.bg=scene.background;this.props=scene.props;this.sceneRevision=-1;this.editing=false;this.editGhost=null;this.boat=boatSprite();this.flats=[];this.camera=new Camera();this.previous=new Map();this.minimap=minimap;this.followId=null;this.hovered=null;this.resize();}
  resize(){const r=this.canvas.getBoundingClientRect();if(r.width&&r.height)this.camera.resize(r.width,r.height);}
  point(event){const r=this.canvas.getBoundingClientRect();return this.camera.worldPoint(event.clientX-r.left,event.clientY-r.top);}
  focus(x,y,zoom=1){this.followId=null;this.resize();this.camera.focus(x,y,zoom);}

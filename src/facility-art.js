@@ -1,0 +1,43 @@
+// Native-resolution town facilities. Shared harbor palette, integer pixel primitives.
+import { canvasOf, rect as r, oval as o, poly as p, stroke as line, INK } from './pixel-art.js';
+const W=['#30251f','#59402c','#85603f','#b28a59','#dfb77a'];
+const S=['#303a3c','#525e5b','#7d8880','#abb5a0','#dde0c4'];
+const T=['#203c40','#315c60','#458180','#71aaa0'];
+function canvas(w,h){const a=canvasOf(w,h);a.native=true;return [a,a.getContext('2d')];}
+function box(c,x,y,w,h,col,edge=INK){r(c,x,y,w,h,edge);r(c,x+1,y+1,w-2,h-2,col);}
+function masonry(c,x,y,w,h){box(c,x,y,w,h,S[1]);for(let yy=y+2;yy<y+h-3;yy+=7)for(let xx=x+2;xx<x+w-3;xx+=12){const ww=Math.min(10,x+w-2-xx);r(c,xx,yy,ww,5,S[2+(Math.floor(xx+yy)%3===0?1:0)]);r(c,xx,yy,ww,1,S[3]);}}
+function planks(c,x,y,w,h){box(c,x,y,w,h,W[1]);for(let xx=x+2;xx<x+w-2;xx+=7){r(c,xx,y+2,5,h-4,W[2]);r(c,xx,y+2,1,h-4,W[3]);r(c,xx+3,y+8,1,Math.max(2,h-17),W[1]);}}
+function roof(c,x,y,w,h,pal=T){p(c,[[x,y+h],[x+18,y],[x+w-18,y],[x+w,y+h]],INK);for(let yy=2;yy<h-2;yy++){const inset=Math.ceil(18*(1-yy/h));r(c,x+inset,y+yy,w-inset*2,1,pal[1]);if(yy%6===0)r(c,x+inset,y+yy,w-inset*2,1,pal[0]);else if(yy%6===1)r(c,x+inset,y+yy,w-inset*2,1,pal[2]);for(let xx=x+inset+((Math.floor(yy/6)%2)*5);xx<x+w-inset;xx+=10)r(c,xx,y+yy,1,1,pal[0]);}line(c,x+18,y+1,x+1,y+h-1,pal[3],2);box(c,x+17,y-2,w-34,4,pal[2]);r(c,x,y+h-2,w,4,W[0]);r(c,x+1,y+h-2,w-2,1,W[3]);}
+function window(c,x,y,w=17,h=19){box(c,x,y,w,h,W[0]);r(c,x+2,y+2,w-4,h-4,'#eab35d');r(c,x+3,y+3,4,h-6,'#ffe3a0');r(c,x+Math.floor(w/2),y+1,2,h-2,W[1]);r(c,x+1,y+Math.floor(h/2),w-2,2,W[1]);r(c,x-2,y+h, w+4,3,W[3]);}
+function crate(c,x,y,s=20){planks(c,x,y,s,s);line(c,x+2,y+2,x+s-3,y+s-3,W[4],2);r(c,x+1,y+s-4,s-2,2,W[1]);for(const xx of [x+2,x+s-4])for(const yy of [y+2,y+s-4])r(c,xx,yy,1,1,INK);}
+function jar(c,x,y,col='#ad7450'){o(c,x,y,6,8,INK);o(c,x,y-1,5,7,col);r(c,x-3,y-10,6,3,INK);r(c,x-2,y-10,4,2,'#e0be87');r(c,x-3,y-4,2,5,'#d9a770');}
+function lamp(c,x,y){box(c,x,y,8,12,W[0]);r(c,x+2,y+2,4,7,'#ffe2a1');r(c,x+3,y+2,1,6,'#fff7d4');r(c,x-1,y-2,10,3,T[0]);}
+function anvil(c,x,y){box(c,x+8,y+12,17,10,W[1]);p(c,[[x,y],[x+34,y],[x+29,y+7],[x+21,y+7],[x+20,y+12],[x+11,y+12],[x+10,y+6],[x+3,y+5]],INK);p(c,[[x+2,y+1],[x+31,y+1],[x+27,y+5],[x+20,y+5],[x+18,y+10],[x+12,y+10],[x+12,y+4],[x+4,y+4]],'#657c83');r(c,x+4,y+1,25,2,'#b5c8c5');}
+function forge(){const [a,c]=canvas(160,160);o(c,80,151,75,6,'#18232355');masonry(c,14,79,128,66);planks(c,22,68,116,28);roof(c,8,31,140,52,['#352e32','#59474b','#816158','#b79172']);masonry(c,112,6,24,65);box(c,109,4,30,7,S[2]);r(c,112,5,23,2,S[4]);r(c,117,8,12,3,INK);
+// Broad arched furnace and white-hot coals.
+box(c,75,98,46,44,S[0]);o(c,98,99,23,16,S[0]);o(c,98,100,17,11,'#5a2925');r(c,81,101,34,37,'#582b27');r(c,84,114,28,24,'#b74829');p(c,[[85,134],[87,113],[94,123],[98,103],[103,125],[109,115],[112,134]],'#ef8c35');p(c,[[91,134],[94,121],[98,129],[103,116],[108,134]],'#ffe4a0');r(c,79,137,39,4,INK);for(let x=84;x<113;x+=6)r(c,x,134,4,3,'#ffcd69');
+window(c,27,94,23,25);lamp(c,61,102);anvil(c,23,131);box(c,122,110,20,30,W[1]);for(let x=126;x<140;x+=5){line(c,x,113,x-2,136,S[3],2);r(c,x-3,112,7,4,S[0]);}r(c,57,82,48,14,W[0]);anvil(c,65,84);r(c,60,99,4,2,W[3]);jar(c,145,141,S[2]);return a;}
+function warehouse(){const [a,c]=canvas(160,160);o(c,80,152,76,6,'#18232355');masonry(c,14,128,131,22);planks(c,19,63,122,70);for(const x of [20,58,100,135]){r(c,x,64,5,66,W[0]);r(c,x,65,1,64,W[3]);}roof(c,6,21,149,49);planks(c,64,86,45,47);line(c,67,89,105,127,W[4],2);line(c,105,89,67,127,W[4],2);r(c,85,87,2,43,W[0]);box(c,81,109,11,6,S[0]);r(c,85,110,2,4,S[4]);window(c,29,78,20,21);window(c,115,78,17,21);
+// Loading awning, hoist and a tiled timber landing.
+roof(c,54,70,65,16);r(c,59,86,3,49,W[0]);r(c,113,86,3,49,W[0]);planks(c,51,133,72,17);r(c,51,134,72,2,W[4]);crate(c,6,126,23);crate(c,25,133,19);crate(c,10,110,18);crate(c,127,127,26);box(c,65,39,30,21,W[0]);r(c,67,41,26,17,'#d1b785');crate(c,72,43,12);lamp(c,143,89);return a;}
+function training(){const [a,c]=canvas(160,128);o(c,80,110,77,14,'#4b4e3955');o(c,80,105,75,17,'#a29269');o(c,80,103,68,13,'#c2ad7b');for(let i=0;i<70;i++)r(c,13+(i*37)%134,96+(i*13)%20,2,1,i%2?'#dbca96':'#a58d61');
+// Rear fence with brass-tipped posts.
+for(let x=8;x<157;x+=23){box(c,x,61,5,39,W[1]);r(c,x,59,5,3,W[4]);}for(const y of [70,86]){r(c,9,y,145,4,W[1]);r(c,9,y,145,1,W[3]);}
+for(const x of [41,85]){line(c,x-7,99,x,53,W[1],3);line(c,x+8,99,x,53,W[1],3);o(c,x,58,18,23,INK);o(c,x,57,16,21,'#d4bd86');o(c,x,57,12,17,'#a14a3c');o(c,x,57,8,12,'#e4d8a3');o(c,x,57,4,6,'#a14a3c');line(c,x-8,70,x+5,54,S[0]);r(c,x+4,53,3,3,S[4]);}
+// Arms rack, shield and rolled practice mats.
+for(const x of [117,147])box(c,x,49,4,53,W[1]);r(c,115,65,39,5,W[3]);for(const x of [122,133,144]){r(c,x,39,2,42,S[3]);p(c,[[x-3,39],[x+1,31],[x+5,39]],S[4]);r(c,x-4,72,11,3,W[4]);}p(c,[[113,83],[137,83],[136,100],[125,111],[114,100]],INK);p(c,[[115,85],[135,85],[134,99],[125,108],[116,99]],'#416c76');line(c,125,86,125,105,'#c9b884',2);r(c,117,94,16,2,'#c9b884');box(c,18,109,26,8,T[1]);r(c,20,110,22,2,T[3]);return a;}
+function board(){const [a,c]=canvas(64,88);o(c,32,81,29,4,'#18232355');for(const x of [9,50]){box(c,x,30,6,51,W[1]);r(c,x+1,31,1,48,W[3]);box(c,x-3,76,12,7,S[2]);}planks(c,5,24,54,43);roof(c,1,9,62,18);box(c,11,30,42,30,'#51432f');for(const [x,y,w,h]of [[14,33,14,19],[30,33,18,11],[33,47,13,10]]){box(c,x,y,w,h,'#eee0b8',W[2]);r(c,x+2,y+4,w-4,1,'#9d8b67');r(c,x+2,y+7,w-5,1,'#9d8b67');r(c,x+w-4,y+h-4,2,2,'#a64c3a');}r(c,30,5,4,6,W[4]);lamp(c,1,39);return a;}
+function fountain(){const [a,c]=canvas(80,80);o(c,40,67,38,10,S[0]);o(c,40,64,37,10,S[2]);o(c,40,62,34,9,S[4]);o(c,40,62,29,7,'#245d64');o(c,40,62,25,5,'#429d9b');for(const x of [21,31,48,56])r(c,x,61+(x%3),7,1,'#9fe0ce');for(const x of [8,63]){box(c,x,49,9,17,S[1]);r(c,x+1,49,7,3,S[4]);}
+box(c,34,31,12,30,S[2]);r(c,35,32,3,28,S[4]);o(c,40,33,20,6,S[0]);o(c,40,31,19,5,S[3]);o(c,40,30,15,3,'#58b5ad');for(const x of [25,52]){r(c,x,33,2,28,'#78c9c3');r(c,x+1,35,1,22,'#cef6de');o(c,x,63,5,1,'#c0ecd3');}p(c,[[40,3],[48,15],[40,28],[32,15]],T[0]);p(c,[[40,5],[45,15],[40,25],[35,15]],'#65d5c5');p(c,[[40,5],[40,22],[35,15]],'#dcffe2');box(c,36,25,8,5,S[3]);for(const [x,y]of [[20,20],[59,15],[53,40]]){r(c,x,y,1,5,'#c5f0cb');r(c,x-2,y+2,5,1,'#c5f0cb');}return a;}
+function palm(c,x,y,h){line(c,x,y,x-5,y-h,W[0],5);line(c,x-1,y-1,x-5,y-h,W[3],3);for(let yy=y-h+8;yy<y;yy+=7)r(c,x-5,yy,5,2,W[1]);const cx=x-5,cy=y-h;for(const [dx,dy]of [[-28,-3],[-21,-16],[-5,-23],[19,-17],[28,-2],[20,12],[-22,12]]){p(c,[[cx,cy],[cx+dx*.55,cy+dy-5],[cx+dx,cy+dy],[cx+dx*.55,cy+dy+3]],'#294d38');line(c,cx,cy,cx+dx*.7,cy+dy-1,'#6b9a50',2);}o(c,cx-2,cy+3,3,3,W[2]);}
+function oasis(){const [a,c]=canvas(144,112);o(c,72,94,69,13,'#94794f');o(c,72,91,67,13,'#d6bd83');o(c,71,87,50,13,'#687c59');o(c,71,85,45,11,'#27575d');o(c,71,84,41,9,'#35888b');o(c,67,82,30,5,'#63b5a6');for(const [x,y,w]of [[40,84,18],[69,89,22],[79,80,12]])r(c,x,y,w,1,'#b7e2c4');for(const [x,y]of [[25,89],[110,92],[40,99]]){o(c,x,y,8,4,'#7e8063');o(c,x-2,y-2,6,3,'#d6c695');}
+palm(c,28,87,50);palm(c,116,78,49);
+// Small shaded rest pavilion; open front faces the pool.
+for(const x of [62,98]){box(c,x,38,3,34,W[1]);r(c,x,38,1,32,W[4]);}p(c,[[54,44],[80,18],[107,44]],W[0]);p(c,[[57,42],[80,21],[104,42]],'#e3c798');p(c,[[70,42],[80,21],[91,42]],'#b66a54');r(c,56,43,49,4,'#85523f');for(let x=58;x<104;x+=7)r(c,x,46,3,3,'#e4c591');box(c,68,61,25,8,T[0]);r(c,70,62,21,2,T[3]);jar(c,102,69);for(const x of [19,121,128]){line(c,x,100,x-3,85,'#527548');line(c,x,99,x+3,88,'#7b9855');}return a;}
+function bench(){const [a,c]=canvas(56,32);for(const x of [9,43]){box(c,x,12,4,19,T[0]);r(c,x+1,13,1,16,S[2]);}for(const y of [5,11,20]){box(c,3,y,50,5,W[2]);r(c,4,y+1,48,1,W[4]);}line(c,4,18,4,25,T[0],2);line(c,51,18,51,25,T[0],2);return a;}
+function flowers(){const [a,c]=canvas(48,56);box(c,3,35,42,16,W[1]);for(let x=6;x<44;x+=7){r(c,x,37,5,12,W[2]);r(c,x,37,1,12,W[3]);}for(let i=0;i<9;i++){const x=7+i*4,y=22+(i*7)%13;line(c,x,40,x,y,'#4d784b',2);r(c,x-3,y+8,4,2,'#79a55e');o(c,x,y,4,3,['#d98491','#ebbd67','#c0a1cd'][i%3]);r(c,x,y,2,2,'#fff0b1');}return a;}
+function lampPost(){const [a,c]=canvas(48,56);box(c,21,14,5,37,T[0]);r(c,22,15,1,35,S[2]);box(c,16,49,15,5,S[1]);line(c,23,15,35,15,T[0],2);lamp(c,31,16);lamp(c,13,4);p(c,[[10,3],[17,0],[24,3]],T[1]);return a;}
+const makers={forge,warehouse,training,board,fountain,oasis};
+const decorations={bench,flowers,lamp:lampPost};
+export function facilitySprite(type){return makers[type]?.()||null;}
+export function townDecorationSprite(type){return decorations[type]?.()||null;}

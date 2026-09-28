@@ -1,7 +1,7 @@
 // Shared geometry for simulation, rendering, town editing and navigation.
 export const WORLD = { width: 3600, height: 2800, revision: 3, tile: 32 };
 export const MART = { x: 1808, y: 1200 };
-export const ARRIVAL = { x: 528, y: 1136, berth: {x:208,y:1136}, reception: { x: 896, y: 1200 } };
+export const ARRIVAL = { x: 528, y: 1136, berth: {x:150,y:1136}, reception: { x: 896, y: 1200 } };
 export const HUB = { id:'hub', x:1808,y:1200,rx:600,ry:420,name:'던전 마트 마을',biome:'hub',color:'#859d6c' };
 export const HARBOR = {id:'harbor',x:640,y:1120,rx:480,ry:360,name:'여명 항구',biome:'coast',color:'#87a698'};
 export const RESERVE = {id:'reserve',x:1800,y:320,name:'종말의 봉인진',biome:'reserve',color:'#687e73'};
