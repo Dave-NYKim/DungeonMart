@@ -406,3 +406,17 @@
 - 라이브 https://dave-nykim.github.io/DungeonMart/ 의 index.html과 src/{world,render,world-art,harbor-art,facility-art,nature-art,landscape-art}.js 8개 파일 HTTP200 및 로컬 바이트 일치 확인.
 - 격리 Whale9225에서 라이브 URL을 대상으로 `/tmp/dungeonmart-design-check.mjs https://dave-nykim.github.io/DungeonMart/` 실행: 모바일390×844·360×640, 전체/지역 렌더, 터치 메뉴, 건물 이동 앞마당/소품과 저장 왕복, 넘침/런타임 예외 없음 확인.
 - 개인 저장은 건드리지 않음. 실기기 GPU 성능은 별도 확인 필요. 이번 대화의 항구·시설·자연물·맵 구성 디자인은 배포 완료.
+
+## 2026-09-28 · 용사 지도 체력바 상시 표시
+
+- 요청: 용사들도 체력바가 보이도록 개선.
+- `src/render.js`: HP 80% 미만 표시 조건 제거. 살아 있는 용사는 최대 체력에서도 상시 표시, 화면 좌표 기준 폭28~40px/높이5px와 어두운 테두리로 축소 가독성 확보. 60% 초과 초록, 30~60% 노랑, 30% 이하 빨강. 비율0~1 보정, 사망 영혼은 숨김. 지형/전투 효과 합성 후 표시하여 가림 감소.
+- 검증: `node --check src/render.js`, `git diff --check` 통과. `/tmp/dungeonmart-hp-check.mjs`를 격리 Whale9223에서 실행하여 390×844·360×640, 줌0.4/1/2, 최대/절반/위험 체력의 바 색·개수·최소 폭 및 사망 시 숨김 확인. 가로 넘침/런타임 예외 없음. `/tmp/dungeonmart-review/hero-hp-390.png` 육안 확인.
+- 저장/게임 로직 변경 없음. 로컬 적용만, 커밋·배포 없음. 실제 휴대폰 다수 밀집 시 가독성은 후속 확인.
+
+## 2026-09-28 · 용사 체력바 배포 준비
+
+- 사용자 “서버에도 올려라” 요청으로 main 커밋·push·GitHub Pages 배포 승인.
+- 배포 범위: 용사 상시 체력바 및 관련 인계/작업/모바일 감사 문서 4개 파일.
+- 배포 전 npm test 68/68, render.js 문법, git diff --check 통과. 앞선 격리 모바일 체력바 검사 통과.
+- 이 기록은 배포 준비 단계이며 빌드 및 라이브 반영은 push 후 확인.
