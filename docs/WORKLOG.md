@@ -399,3 +399,10 @@
 - 범위: 미배포 항구·배·등록소, 시설6종/마을 장식, 나무·바위·지역 지형, 도로·경계·암벽·유적·시설 앞마당까지 이번 대화의 로컬 디자인 작업 전체.
 - 검증: 최종 게임 코드 기준 npm test68/68, 격리 모바일390×844·360×640 및 전체/지역 렌더, 건물 이동 후 앞마당/소품/저장 복원 통과. 배포 전 변경 모듈 문법 및 git diff --check 재확인. 개인 저장/경제/성장 구조 변경 없음.
 - 배포 대상: origin main, https://dave-nykim.github.io/DungeonMart/ . 이 기록 시점에는 배포 준비이며 실제 빌드·라이브 파일 확인 결과는 배포 후 별도 기록.
+
+## 2026-09-28 · 디자인 1차 배포 완료 확인
+
+- 배포 커밋 `2731fc4e493d075881d0cf6cd495d2bbf887e504`: main push 성공, GitHub Pages latest build `built`, error 없음.
+- 라이브 https://dave-nykim.github.io/DungeonMart/ 의 index.html과 src/{world,render,world-art,harbor-art,facility-art,nature-art,landscape-art}.js 8개 파일 HTTP200 및 로컬 바이트 일치 확인.
+- 격리 Whale9225에서 라이브 URL을 대상으로 `/tmp/dungeonmart-design-check.mjs https://dave-nykim.github.io/DungeonMart/` 실행: 모바일390×844·360×640, 전체/지역 렌더, 터치 메뉴, 건물 이동 앞마당/소품과 저장 왕복, 넘침/런타임 예외 없음 확인.
+- 개인 저장은 건드리지 않음. 실기기 GPU 성능은 별도 확인 필요. 이번 대화의 항구·시설·자연물·맵 구성 디자인은 배포 완료.

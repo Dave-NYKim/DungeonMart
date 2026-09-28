@@ -1,5 +1,12 @@
 # Dungeon Mart 인계 노트
 
+## 2026-09-28 · 디자인 1차 배포 완료 확인
+
+- 배포 커밋 `2731fc4e493d075881d0cf6cd495d2bbf887e504`: main push 성공, GitHub Pages latest build `built`, error 없음.
+- 라이브 https://dave-nykim.github.io/DungeonMart/ 의 index.html과 src/{world,render,world-art,harbor-art,facility-art,nature-art,landscape-art}.js 8개 파일 HTTP200 및 로컬 바이트 일치 확인.
+- 격리 Whale9225에서 라이브 URL을 대상으로 `/tmp/dungeonmart-design-check.mjs https://dave-nykim.github.io/DungeonMart/` 실행: 모바일390×844·360×640, 전체/지역 렌더, 터치 메뉴, 건물 이동 앞마당/소품과 저장 왕복, 넘침/런타임 예외 없음 확인.
+- 개인 저장은 건드리지 않음. 실기기 GPU 성능은 별도 확인 필요. 이번 대화의 항구·시설·자연물·맵 구성 디자인은 배포 완료.
+
 ## 2026-09-28 · 1차 디자인 통합 배포
 
 - 사용자 요청: “1차적으로는 끝난거 같은데 서버에 올리자”. main 커밋·push·GitHub Pages 배포 승인.
