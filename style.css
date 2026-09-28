@@ -368,7 +368,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 @media(pointer:coarse) and (max-width:720px){
  .time-controls button,.map-zoom button{min-width:40px;min-height:40px}
  .map-shortcuts{top:138px;right:8px;max-width:none}.map-shortcuts button{font-size:9px;padding:5px 4px}
- .boss-hud{top:230px}
+ .boss-hud{top:118px}
  .bottom-nav .nav-button svg{width:22px;height:22px}.bottom-nav .nav-button span{font-size:10px}
  .management-panel{height:44dvh}
  #modal{width:calc(100vw - 16px);max-width:none;max-height:90dvh;overflow:auto;padding:16px}

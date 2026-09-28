@@ -32,7 +32,7 @@ export const actBossCooldownLeft=(s,zone)=>Math.max(0,(s.actBossReadyAt?.[zone]|
 function rallyHeroes(s){for(const h of s.heroes){h.target=null;delete h.restStop;if(h.state==='dead')continue;if(h.state==='arrive'&&h.arrivalStage===-1){h.x=ARRIVAL.reception.x;h.y=ARRIVAL.reception.y;h.arrivalStage=2;h.arrivalWait=0;}h.state='depart';}}
 export function summonActBoss(s,zone){
  if(!availableZone(s,zone))return {ok:false,message:'이전 액트 보스를 먼저 처치하세요.'};
- if(s.raid)return {ok:false,message:'진행 중인 보스전을 먼저 끝내세요.'};
+ if(s.raid||s.enemies.some(e=>e.boss&&e.hp>0))return {ok:false,message:'진행 중인 보스전을 먼저 끝내세요.'};
  const wait=actBossCooldownLeft(s,zone);if(wait>0)return {ok:false,message:`ACT ${zone+1} 보스는 ${Math.ceil(wait)}초 뒤 다시 소환할 수 있습니다.`};
  const poi=POIS.find(p=>p.id===ACT_BOSS_POIS[zone]),pos=nearestWalkable({x:poi.x,y:poi.y+110}),stats=bossStats(s),e={id:`e${s.nextId++}`,type:ACT_BOSS_TYPES[zone],zone,tier:s.difficulty.tier,...pos,hp:Math.round(stats.hp*[.18,.32,.5,.72][zone]),atk:Math.round(stats.atk*[.35,.5,.65,.8][zone]),boss:true,actBoss:zone,elite:false,cd:2,specialCd:5,summonCd:14,spinCd:12,facing:0,spin:null,contributors:{},dots:[],slow:0,stun:0,curse:0,fear:0,taunt:null,summoned:false};
  e.maxHp=e.hp;s.enemies.push(e);s.actBossReadyAt[zone]=s.time+ACT_BOSS_COOLDOWN;s.raid={bossId:e.id,zone,kind:'act',started:s.time,ends:s.time+RAID_DURATION};rallyHeroes(s);log(s,`ACT ${zone+1} · ${MONSTERS[e.type].name} 도전!`,'boss');return {ok:true,message:'모든 용사가 액트 보스로 향합니다.',boss:e};
@@ -267,7 +267,7 @@ export function bossStats(s) {
 export function summonBoss(s) {
   const m = MONSTERS[BOSS_TYPE];
   if(!finalBossUnlocked(s))return {ok:false,message:'ACT 4 보스 처치 후 최종보스를 소환할 수 있습니다.'};
-  if (s.raid) return { ok: false, message: `${m.name}이(가) 이미 나타나 있습니다.` };
+  if (s.raid || s.enemies.some(e => e.boss && e.hp > 0)) return { ok: false, message: '진행 중인 보스전을 먼저 끝내세요.' };
   if (raidCooldownLeft(s) > 0) { const left = raidCooldownLeft(s); return { ok: false, message: `봉인문이 아직 닫혀 있습니다. ${Math.ceil(left / 60)}분 후 다시 소환할 수 있습니다.` }; }
   if (s.treasury < RAID_COST) return { ok: false, message: `보스 소환에는 운영금 ${RAID_COST} G가 필요합니다.` };
   if (!s.heroes.some(h => h.state !== 'dead')) return { ok: false, message: '출전할 수 있는 용사가 없습니다.' };
@@ -987,6 +987,7 @@ export function restore(raw) {
     if(legacyCampaign&&s.raid?.kind==='final'){const boss=s.enemies.find(e=>e.id===s.raid.bossId);if(boss)Object.assign(boss,nearestWalkable(BOSS_LAIR));rallyHeroes(s);}
     if (s.raid && !s.enemies.some(e => e.boss && e.id === s.raid.bossId && e.hp > 0)) s.raid = null;
     if (!s.raid) s.enemies = s.enemies.filter(e => !e.boss && !e.minion);
+    else s.enemies = s.enemies.filter(e => !e.boss || e.id === s.raid.bossId);
     s.town ??= freshTown();
     if(!validateTown(s.town))return null;
     if(s.worldRevision!==undefined&&(!Number.isInteger(s.worldRevision)||s.worldRevision<1||s.worldRevision>WORLD.revision))return null;

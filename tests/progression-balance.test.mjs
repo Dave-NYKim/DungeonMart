@@ -6,7 +6,7 @@ test('all 29 stage boundaries put ACT1 above previous ACT4, including act bosses
  let previous;
  for(let tier=0;tier<3;tier++)for(let stage=1;stage<=10;stage++){
   const s=createGame();Object.assign(s.difficulty,{tier,stage,unlocked:2,unlockedStage:10});s.campaign.clears[`${tier}:${stage}`]=4;
-  const first=zoneStats(s,0),last=zoneStats(s,3),boss1=summonActBoss(s,0).boss;s.raid=null;
+  const first=zoneStats(s,0),last=zoneStats(s,3),boss1=summonActBoss(s,0).boss;s.raid=null;s.enemies=s.enemies.filter(e=>!e.boss);
   const boss4=summonActBoss(s,3).boss;
   if(previous)for(const key of ['hp','atk']){assert.ok(first[key]>previous.last[key]);assert.ok(boss1[key]>previous.boss4[key]);}
   previous={last,boss4};

@@ -52,3 +52,22 @@ test('act bosses scale with party size and each act has a five-minute cooldown g
  assert.ok(summonActBoss(s,1).ok,'other acts keep their own timers');
  s.raid=null;s.enemies=[];s.time+=left;assert.ok(summonActBoss(s,0).ok);
 });
+
+test('only one boss can be summoned across acts and final, even with a missing raid record',()=>{
+ const s=createGame();s.campaign.clears['0:1']=4;s.treasury=10000;
+ const first=summonActBoss(s,0);assert.ok(first.ok);const gold=s.treasury;
+ for(const zone of [0,1,2,3])assert.equal(summonActBoss(s,zone).ok,false);
+ assert.equal(summonBoss(s).ok,false);
+ s.raid=null;
+ for(const zone of [0,1,2,3])assert.equal(summonActBoss(s,zone).ok,false);
+ assert.equal(summonBoss(s).ok,false);assert.equal(s.treasury,gold);
+ assert.equal(s.enemies.filter(e=>e.boss).length,1);
+});
+test('restoring duplicate bosses preserves only the active raid boss and player assets',()=>{
+ const s=createGame();s.treasury=10000;const first=summonActBoss(s,0).boss;
+ const duplicate=structuredClone(first);duplicate.id=`e${s.nextId++}`;s.enemies.push(duplicate);
+ const loaded=restore(serialize(s));assert.ok(loaded);
+ assert.deepEqual(loaded.enemies.filter(e=>e.boss).map(e=>e.id),[first.id]);
+ assert.equal(loaded.raid.bossId,first.id);assert.equal(loaded.treasury,s.treasury);
+ assert.deepEqual(loaded.items,s.items);
+});
